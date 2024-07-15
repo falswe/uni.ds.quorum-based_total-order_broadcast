@@ -32,7 +32,8 @@ compileJava {
 
 mainClassName = "it.unitn.ds1.vsync.VirtualSynch"
 // mainClassName = "it.unitn.ds1.twophasecommit.TwoPhaseCommit"
-
+// mainClassName = "it.unitn.ds1.snapshotexercise.BankSystem"
+// mainClassName = "it.unitn.ds1.causaldelivery.CausalDelivery"
 run {
     standardInput = System.in
 }
