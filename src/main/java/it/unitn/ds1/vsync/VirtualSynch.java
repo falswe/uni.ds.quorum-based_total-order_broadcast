@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.vsync;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 
@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
 
-import it.unitn.ds1.VirtualSynchActor.JoinGroupMsg;
-import it.unitn.ds1.VirtualSynchActor.CrashMsg;
-import it.unitn.ds1.VirtualSynchActor.CrashType;
-import it.unitn.ds1.VirtualSynchActor.RecoveryMsg;
+import it.unitn.ds1.vsync.VirtualSynchActor.JoinGroupMsg;
+import it.unitn.ds1.vsync.VirtualSynchActor.CrashMsg;
+import it.unitn.ds1.vsync.VirtualSynchActor.CrashType;
+import it.unitn.ds1.vsync.VirtualSynchActor.RecoveryMsg;
 
 public class VirtualSynch {
   final static int N_NODES = 2;

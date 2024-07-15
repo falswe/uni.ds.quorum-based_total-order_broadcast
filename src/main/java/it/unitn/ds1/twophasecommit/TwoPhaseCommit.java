@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.twophasecommit;
 
 import akka.actor.ActorRef;
 import akka.actor.AbstractActor;

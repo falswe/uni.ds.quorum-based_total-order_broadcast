@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.vsync;
 import akka.actor.*;
 import scala.concurrent.duration.Duration;
 
@@ -6,8 +6,8 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import it.unitn.ds1.VirtualSynchManager.CrashReportMsg;
-import it.unitn.ds1.VirtualSynchManager.JoinNodeMsg;
+import it.unitn.ds1.vsync.VirtualSynchManager.CrashReportMsg;
+import it.unitn.ds1.vsync.VirtualSynchManager.JoinNodeMsg;
 
 public class VirtualSynchActor extends AbstractActor {
 

@@ -1,11 +1,11 @@
-package it.unitn.ds1;
+package it.unitn.ds1.vsync;
 import akka.actor.*;
 
 import java.io.Serializable;
 import java.util.*;
 
-import it.unitn.ds1.VirtualSynchActor.JoinGroupMsg;
-import it.unitn.ds1.VirtualSynchActor.ViewChangeMsg;
+import it.unitn.ds1.vsync.VirtualSynchActor.JoinGroupMsg;
+import it.unitn.ds1.vsync.VirtualSynchActor.ViewChangeMsg;
 
 public class VirtualSynchManager extends AbstractActor {
 
