@@ -30,10 +30,10 @@ compileJava {
     options.compilerArgs += ["-Xlint:deprecation"]
 }
 
-mainClassName = "it.unitn.ds1.vsync.VirtualSynch"
-// mainClassName = "it.unitn.ds1.twophasecommit.TwoPhaseCommit"
-// mainClassName = "it.unitn.ds1.snapshotexercise.BankSystem"
 // mainClassName = "it.unitn.ds1.causaldelivery.CausalDelivery"
+// mainClassName = "it.unitn.ds1.snapshotexercise.BankSystem"
+// mainClassName = "it.unitn.ds1.vsync.VirtualSynch"
+mainClassName = "it.unitn.ds1.twophasecommit.TwoPhaseCommit"
 run {
     standardInput = System.in
 }

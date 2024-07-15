@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.snapshotexercise;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Cancellable;
@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
 
-import it.unitn.ds1.Bank.JoinGroupMsg;
-import it.unitn.ds1.Bank.StartSnapshot;
+import it.unitn.ds1.snapshotexercise.Bank.JoinGroupMsg;
+import it.unitn.ds1.snapshotexercise.Bank.StartSnapshot;
 
 public class BankSystem {
   final static int N_BRANCHES = 10;

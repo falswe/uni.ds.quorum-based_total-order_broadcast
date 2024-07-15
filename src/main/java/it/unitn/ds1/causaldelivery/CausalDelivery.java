@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.causaldelivery;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.io.IOException;
 
-import it.unitn.ds1.Chatter.JoinGroupMsg;
-import it.unitn.ds1.Chatter.StartChatMsg;
-import it.unitn.ds1.Chatter.PrintHistoryMsg;
+import it.unitn.ds1.causaldelivery.Chatter.JoinGroupMsg;
+import it.unitn.ds1.causaldelivery.Chatter.StartChatMsg;
+import it.unitn.ds1.causaldelivery.Chatter.PrintHistoryMsg;
 
 public class CausalDelivery {
   final private static int N_LISTENERS = 10; // number of listening actors

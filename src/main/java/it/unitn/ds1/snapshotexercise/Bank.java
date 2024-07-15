@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.snapshotexercise;
 import akka.actor.ActorRef;
 import akka.actor.AbstractActor;
 import akka.actor.Cancellable;

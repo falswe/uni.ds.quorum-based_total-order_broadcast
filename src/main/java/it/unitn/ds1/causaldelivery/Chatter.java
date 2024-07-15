@@ -1,4 +1,4 @@
-package it.unitn.ds1;
+package it.unitn.ds1.causaldelivery;
 import akka.actor.ActorRef;
 import akka.actor.AbstractActor;
 import java.util.Random;
