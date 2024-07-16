@@ -2,4 +2,7 @@
 bin/
 build/
 .gradle/
+logs/
+
+# configuration files
 .vscode/

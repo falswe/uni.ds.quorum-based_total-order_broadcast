@@ -7,11 +7,12 @@ import it.unitn.ds1.actors.Client.ReadRequest;
 import it.unitn.ds1.actors.Client.ReadResponse;
 import it.unitn.ds1.actors.Client.WriteRequest;
 import it.unitn.ds1.actors.Client.WriteResponse;
-import it.unitn.ds1.snapshotexercise.Bank;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class Replica extends AbstractActor{
+public class Replica extends AbstractActor {
+  private static final Logger logger = LoggerFactory.getLogger(Replica.class);
   protected final int id;
-  
   int value = 5;
 
   public Replica(int id) {
@@ -19,31 +20,26 @@ public class Replica extends AbstractActor{
     this.id = id;
   }
 
-  // a simple logging function
-  void print(String s) {
-    System.out.format("%2d: %s\n", id, s);
-  }
-
   static public Props props(int id) {
     return Props.create(Replica.class, () -> new Replica(id));
   }
 
   private void onReadRequest(ReadRequest msg) {
-    print("received read request");
+    logger.info("Replica {} received read request", id);
     getSender().tell(new ReadResponse(value), getSelf());
   }
 
   private void onWriteRequest(WriteRequest msg) {
-    //send it to the coordinator
+    logger.info("Replica {} received write request", id);
+    // send it to the coordinator
     getSender().tell(new WriteResponse(), getSelf());
   }
 
   @Override
   public Receive createReceive() {
     return receiveBuilder()
-                .match(ReadRequest.class, this::onReadRequest)
-                .match(WriteRequest.class, this::onWriteRequest)
-                .build();
-
+        .match(ReadRequest.class, this::onReadRequest)
+        .match(WriteRequest.class, this::onWriteRequest)
+        .build();
   }
 }
