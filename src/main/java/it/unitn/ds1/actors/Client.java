@@ -6,7 +6,6 @@ import java.util.ArrayList;
 
 import akka.actor.*;
 import it.unitn.ds1.Main.StartMessage;
-import it.unitn.ds1.twophasecommit.TwoPhaseCommit.VoteRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.util.Random;
@@ -30,12 +29,17 @@ public class Client extends AbstractActor {
     for (ActorRef b : sm.group) {
       this.replicas.add(b);
     }
-    logger.info("Client {} starting with {} peer(s)", id, sm.group.size());
+    logger.info("Client {} starting with {} replica(s)", id, sm.group.size());
   }
 
   private int randomReplica() {
     Random rand = new Random();
     return rand.nextInt(replicas.size());
+  }
+
+  private int randomValue() {
+    Random rand = new Random();
+    return rand.nextInt();
   }
 
   public static class ReadRequest implements Serializable {
@@ -50,9 +54,9 @@ public class Client extends AbstractActor {
   }
 
   public static class WriteRequest implements Serializable {
-    public final int new_value;
+    public int new_value;
 
-    public WriteRequest(int new_value) {
+    public WriteRequest(int new_value){
       this.new_value = new_value;
     }
   }
@@ -66,9 +70,24 @@ public class Client extends AbstractActor {
     logger.info("Client {} read {}", id, msg.value);
   }
 
-  public void onStartMessage(StartMessage msg) {
+  public void onStartMessage(StartMessage msg) throws InterruptedException {
     setReplicas(msg);
     int rand_replica_id = randomReplica();
+    replicas.get(rand_replica_id).tell(new ReadRequest(), getSelf());
+    logger.info("Client {} sent read request to replica {}", id, rand_replica_id);
+
+    rand_replica_id = randomReplica();
+    int rand_new_value = randomValue();
+    replicas.get(rand_replica_id).tell(new WriteRequest(rand_new_value), getSelf());
+    logger.info("Client {} sent write request to replica {}", id, rand_replica_id);
+
+    //wait a little bit
+    try {
+      Thread.sleep(10000); // 1000 millisecondi = 1 secondo
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    rand_replica_id = randomReplica();
     replicas.get(rand_replica_id).tell(new ReadRequest(), getSelf());
     logger.info("Client {} sent read request to replica {}", id, rand_replica_id);
   }

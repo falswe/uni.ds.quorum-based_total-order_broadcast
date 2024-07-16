@@ -2,12 +2,9 @@ package it.unitn.ds1;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import akka.actor.Cancellable;
-import scala.concurrent.duration.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
@@ -17,8 +14,6 @@ import java.util.Collections;
 import it.unitn.ds1.actors.Client;
 import it.unitn.ds1.actors.Coordinator;
 import it.unitn.ds1.actors.Replica;
-import it.unitn.ds1.snapshotexercise.Bank.JoinGroupMsg;
-import it.unitn.ds1.snapshotexercise.Bank.StartSnapshot;
 
 public class Main {
   private static final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -44,7 +39,7 @@ public class Main {
     // Create replicas and put them into a list
     List<ActorRef> replicas = new ArrayList<>();
     for (int i = 0; i < N_REPLICAS; i++) {
-      replicas.add(system.actorOf(Replica.props(i), "replica" + i));
+      replicas.add(system.actorOf(Replica.props(i, coordinator), "replica" + i));
     }
 
     // Create clients and put them into a list
@@ -53,8 +48,11 @@ public class Main {
       clients.add(system.actorOf(Client.props(i), "client" + i));
     }
 
-    // Send join messages to the banks to inform them of all the replicas
+    
     StartMessage start = new StartMessage(replicas);
+    coordinator.tell(start, ActorRef.noSender());
+
+    // Send join messages to the banks to inform them of all the replicas
     for (ActorRef peer : clients) {
       peer.tell(start, ActorRef.noSender());
     }
