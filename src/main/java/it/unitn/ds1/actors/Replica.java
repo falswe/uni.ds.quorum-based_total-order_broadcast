@@ -7,18 +7,29 @@ import it.unitn.ds1.actors.Client.ReadRequest;
 import it.unitn.ds1.actors.Client.ReadResponse;
 import it.unitn.ds1.actors.Client.WriteRequest;
 import it.unitn.ds1.actors.Client.WriteResponse;
+import it.unitn.ds1.snapshotexercise.Bank;
 
 public class Replica extends AbstractActor{
   protected final int id;
   
-  int value;
+  int value = 5;
 
   public Replica(int id) {
     super();
     this.id = id;
   }
 
+  // a simple logging function
+  void print(String s) {
+    System.out.format("%2d: %s\n", id, s);
+  }
+
+  static public Props props(int id) {
+    return Props.create(Replica.class, () -> new Replica(id));
+  }
+
   private void onReadRequest(ReadRequest msg) {
+    print("received read request");
     getSender().tell(new ReadResponse(value), getSelf());
   }
 
