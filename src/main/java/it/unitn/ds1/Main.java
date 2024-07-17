@@ -22,8 +22,8 @@ import it.unitn.ds1.utils.Messages.StartMessage;
  */
 public class Main {
   private static final Logger logger = LoggerFactory.getLogger(Main.class);
-  final static int N_REPLICAS = 2; // Number of replicas
-  final static int N_CLIENTS = 1; // Number of clients
+  final static int N_REPLICAS = 3; // Number of replicas
+  final static int N_CLIENTS = 2; // Number of clients
 
   public static void main(String[] args) {
     final ActorSystem system = ActorSystem.create("main");

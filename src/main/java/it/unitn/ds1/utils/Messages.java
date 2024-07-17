@@ -11,6 +11,14 @@ import akka.actor.ActorRef;
  */
 public class Messages {
 
+  public static class AbstractMessage implements Serializable {
+    public int sender_id;
+
+    public AbstractMessage(int sender_id) {
+      this.sender_id = sender_id;
+    }
+  }
+
   /**
    * Message sent to initialize the actors with the list of participants.
    */
@@ -23,27 +31,36 @@ public class Messages {
   }
 
   // Client messages
-  public static class ReadRequest implements Serializable {
+  public static class ReadRequest extends AbstractMessage {
+
+    public ReadRequest(int sender_id) {
+      super(sender_id);
+    }
   }
 
-  public static class ReadResponse implements Serializable {
+  public static class ReadResponse extends AbstractMessage {
     public final int value;
 
-    public ReadResponse(int value) {
+    public ReadResponse(int sender_id, int value) {
+      super(sender_id);
       this.value = value;
     }
   }
 
-  public static class WriteRequest implements Serializable {
+  public static class WriteRequest extends AbstractMessage {
     public int new_value;
 
-    public WriteRequest(int new_value) {
+    public WriteRequest(int sender_id, int new_value) {
+      super(sender_id);
       this.new_value = new_value;
     }
   }
 
   // Replica messages
-  public static class Ack implements Serializable {
+  public static class Ack extends AbstractMessage {
+    public Ack(int sender_id) {
+      super(sender_id);
+    }
   }
 
   public static class UpdateTimeout implements Serializable {
@@ -52,7 +69,10 @@ public class Messages {
   public static class WriteOkTimeout implements Serializable {
   }
 
-  public static class ReplicaAlive implements Serializable {
+  public static class ReplicaAlive extends AbstractMessage {
+    public ReplicaAlive(int sender_id) {
+      super(sender_id);
+    }
   }
 
   // Coordinator messages

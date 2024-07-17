@@ -54,7 +54,7 @@ public class Coordinator extends Replica {
 
   private void onWriteRequest(WriteRequest msg) {
     try {
-      logger.info("Coordinator received write request");
+      logger.info("Coordinator received write request from replica {} with value {}", msg.sender_id, msg.new_value);
 
       UpdateRequest update = new UpdateRequest(msg.new_value);
 
@@ -67,7 +67,7 @@ public class Coordinator extends Replica {
   private void onAck(Ack msg) {
     try {
       ackReceived.add(getSender());
-      logger.info("Received Ack from Replica {}", getSender());
+      logger.info("Coordinator received Ack from Replica {}", msg.sender_id);
       if (enoughAckReceived()) {
         WriteOk write = new WriteOk();
         Functions.multicast(write, replicas, getSelf());
@@ -79,6 +79,7 @@ public class Coordinator extends Replica {
 
   public void onBroadcastTimeout(BroadcastTimeout msg) {
     try {
+      logger.debug("Coordinator sent out a broadcast message to all replicas");
       Functions.setTimeout(getContext(), BROADCAST_TIMEOUT, getSelf(), new BroadcastTimeout());
       AreYouStillAlive confAlive = new AreYouStillAlive();
       Functions.multicast(confAlive, replicas, getSelf());
@@ -89,11 +90,13 @@ public class Coordinator extends Replica {
   }
 
   public void onReplicaAlive(ReplicaAlive msg) {
+    logger.debug("Coordinator got a hearbeat message from replica {}", msg.sender_id);
     replicasAlive.add(getSender());
   }
 
   public void onConfirmationTimeout(ConfirmationTimeout msg) {
     try {
+      logger.debug("Coordinator reached it's confirmation timeout");
       if (replicas.size() != replicasAlive.size()) {
         logger.warn("Some replicas did not respond. Initiating failure handling.");
         // TODO: remove the replicas which are crashed

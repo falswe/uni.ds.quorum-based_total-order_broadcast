@@ -40,8 +40,8 @@ public class Replica extends AbstractActor {
 
   private void onReadRequest(ReadRequest msg) {
     try {
-      logger.info("Replica {} received read request", id);
-      getSender().tell(new ReadResponse(value), getSelf());
+      logger.info("Replica {} received read request from client {}", id, msg.sender_id);
+      getSender().tell(new ReadResponse(id, value), getSelf());
     } catch (Exception e) {
       logger.error("Replica {} encountered an error during read request", id, e);
     }
@@ -49,8 +49,8 @@ public class Replica extends AbstractActor {
 
   private void onWriteRequest(WriteRequest msg) {
     try {
-      logger.info("Replica {} received write request", id);
-      coordinator.tell(new WriteRequest(msg.new_value), getSender());
+      logger.info("Replica {} received write request from client {} with value {}", id, msg.sender_id, msg.new_value);
+      coordinator.tell(new WriteRequest(id, msg.new_value), getSender());
       Functions.setTimeout(getContext(), UPDATE_TIMEOUT, getSelf(), new UpdateTimeout());
     } catch (Exception e) {
       logger.error("Replica {} encountered an error during write request", id, e);
@@ -60,9 +60,9 @@ public class Replica extends AbstractActor {
   private void onUpdateRequest(UpdateRequest msg) {
     try {
       update_received = true;
-      logger.info("Replica {} received update request", id);
+      logger.info("Replica {} received update request from the coordinator", id);
       new_value = msg.new_value;
-      coordinator.tell(new Ack(), getSelf());
+      coordinator.tell(new Ack(id), getSelf());
       Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(), new WriteOkTimeout());
     } catch (Exception e) {
       logger.error("Replica {} encountered an error during update request", id, e);
@@ -71,6 +71,7 @@ public class Replica extends AbstractActor {
 
   private void onWriteOk(WriteOk msg) {
     try {
+      logger.info("Replica {} received WriteOk from coordinator, changed value from {} to {}", id, value, new_value);
       writeok_received = true;
       this.value = this.new_value;
     } catch (Exception e) {
@@ -79,6 +80,7 @@ public class Replica extends AbstractActor {
   }
 
   public void onUpdateTimeout(UpdateTimeout msg) {
+    logger.debug("Replica {} reached it's update timeout", id);
     if (!update_received) {
       logger.error("Replica {} did not receive update in time. Coordinator might have crashed.", id);
       // TODO: Implement coordinator crash recovery
@@ -86,6 +88,7 @@ public class Replica extends AbstractActor {
   }
 
   public void onWriteOkTimeout(WriteOkTimeout msg) {
+    logger.debug("Replica {} reached it's WriteOk timeout", id);
     if (!writeok_received) {
       logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.", id);
       // TODO: Implement coordinator crash recovery
@@ -93,7 +96,8 @@ public class Replica extends AbstractActor {
   }
 
   public void onAreYouStillAlive(AreYouStillAlive msg) {
-    getSender().tell(new ReplicaAlive(), getSelf());
+    logger.debug("Replica {} was asked if it's still alive", id);
+    getSender().tell(new ReplicaAlive(id), getSelf());
   }
 
   @Override

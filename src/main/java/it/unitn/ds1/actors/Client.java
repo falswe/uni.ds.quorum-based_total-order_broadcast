@@ -39,19 +39,19 @@ public class Client extends AbstractActor {
   }
 
   public void onReadResponse(ReadResponse msg) {
-    logger.info("Client {} read {}", id, msg.value);
+    logger.info("Client {} read {} from replica {}", id, msg.value, msg.sender_id);
   }
 
   public void onStartMessage(StartMessage msg) {
     try {
       setReplicas(msg);
       int rand_replica_id = new Random().nextInt(replicas.size());
-      replicas.get(rand_replica_id).tell(new ReadRequest(), getSelf());
+      replicas.get(rand_replica_id).tell(new ReadRequest(id), getSelf());
       logger.info("Client {} sent read request to replica {}", id, rand_replica_id);
 
       rand_replica_id = new Random().nextInt(replicas.size());
       int rand_new_value = new Random().nextInt();
-      replicas.get(rand_replica_id).tell(new WriteRequest(rand_new_value), getSelf());
+      replicas.get(rand_replica_id).tell(new WriteRequest(id, rand_new_value), getSelf());
       logger.info("Client {} sent write request to replica {}", id, rand_replica_id);
 
       // Use scheduler for delay
@@ -60,7 +60,7 @@ public class Client extends AbstractActor {
           () -> {
             int new_rand_replica_id = new Random().nextInt(replicas.size());
             ;
-            replicas.get(new_rand_replica_id).tell(new ReadRequest(), getSelf());
+            replicas.get(new_rand_replica_id).tell(new ReadRequest(id), getSelf());
             logger.info("Client {} sent read request to replica {}", id, new_rand_replica_id);
           },
           getContext().system().dispatcher());
