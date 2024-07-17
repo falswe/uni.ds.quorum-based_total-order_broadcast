@@ -15,15 +15,19 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * The Replica class represents a replica in the distributed system.
+ * It handles read and write requests and coordinates with the Coordinator.
+ */
 public class Replica extends AbstractActor {
   private static final Logger logger = LoggerFactory.getLogger(Replica.class);
-  protected final int id;
-  protected ActorRef coordinator;
-  private int value = 5;
+  protected final int id; // Replica ID
+  protected ActorRef coordinator; // Reference to the coordinator actor
+  private int value = 5; // Initial value of the replica
   private int new_value;
 
-  private final static int UPDATE_TIMEOUT = 1000; // timeout for the update from coordinator, ms
-  private final static int WRITEOK_TIMEOUT = 1000; // timeout for the writeok from coordinator, ms
+  private final static int UPDATE_TIMEOUT = 1000; // Timeout for the update from coordinator, ms
+  private final static int WRITEOK_TIMEOUT = 1000; // Timeout for the writeok from coordinator, ms
   private boolean update_received = false;
   private boolean writeok_received = false;
 
@@ -42,13 +46,12 @@ public class Replica extends AbstractActor {
     return Props.create(Replica.class, () -> new Replica(id, coordinator));
   }
 
-  // schedule a Timeout message in specified time
-
+  // Schedule a Timeout message in specified time
   void setUpdateTimeout(int time) {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new UpdateTimeout(), // the message to send
+        new UpdateTimeout(), // The message to send
         getContext().system().dispatcher(), getSelf());
   }
 
@@ -56,10 +59,11 @@ public class Replica extends AbstractActor {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new UpdateTimeout(), // the message to send
+        new UpdateTimeout(), // The message to send
         getContext().system().dispatcher(), getSelf());
   }
 
+  // Messages used by the replica.
   public static class Ack implements Serializable {
   }
 

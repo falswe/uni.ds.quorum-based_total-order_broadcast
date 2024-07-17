@@ -10,10 +10,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.util.Random;
 
+/**
+ * The Client class represents a client in the distributed system.
+ * It sends read and write requests to replicas.
+ */
 public class Client extends AbstractActor {
   private static final Logger logger = LoggerFactory.getLogger(Client.class);
-  protected final int id;
-  protected List<ActorRef> replicas;
+  protected final int id; // Client ID
+  protected List<ActorRef> replicas; // List of replica actors
 
   public Client(int id) {
     super();
@@ -42,6 +46,9 @@ public class Client extends AbstractActor {
     return rand.nextInt();
   }
 
+  /**
+   * Messages used by the client.
+   */
   public static class ReadRequest implements Serializable {
   }
 
@@ -78,7 +85,7 @@ public class Client extends AbstractActor {
 
     // wait a little bit
     try {
-      Thread.sleep(10000); // 1000 millisecondi = 1 secondo
+      Thread.sleep(10000); // 1000 milliseconds = 1 second
     } catch (InterruptedException e) {
       e.printStackTrace();
     }

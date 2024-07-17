@@ -2,6 +2,10 @@ apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'application'
 
+configurations {
+    umlDoclet
+}
+
 repositories {
     mavenCentral()
     mavenLocal()
@@ -24,10 +28,35 @@ dependencies {
     testImplementation "com.typesafe.akka:akka-actor-testkit-typed_${versions.ScalaBinary}:${versions.AkkaVersion}"
     testImplementation "junit:junit:${versions.JunitVersion}"
     implementation "ch.qos.logback:logback-classic:${versions.LogBackVersion}"
+
+    umlDoclet "nl.talsmasoftware:umldoclet:2.2.0"
+}
+
+javadoc {
+    source = sourceSets.main.allJava
+    // Original code: options.docletpath = configurations.umlDoclet.files.asType(List)
+    options.addStringOption "docletpath", "libs/umldoclet-2.2.0.jar"
+    options.doclet = "nl.talsmasoftware.umldoclet.UMLDoclet"
+    // A local plantuml server (which is way faster) can be used like this:
+    // docker run -d -p 8080:8080 plantuml/plantuml-server:latest
+    // options.addStringOption "plantumlServerUrl", "http://localhost:8080/"
+    options.addStringOption "plantumlServerUrl", "http://www.plantuml.com/plantuml"//"http://localhost:8080/"
 }
 
 compileJava {
     options.compilerArgs += ["-Xlint:deprecation"]
+}
+
+// Javadoc configuration
+tasks.withType(Javadoc) {
+    options {
+        encoding = 'UTF-8'
+        charSet = 'UTF-8'
+        addStringOption('Xdoclint:none', '-quiet')
+        author = true
+        version = true
+        addBooleanOption('noTimestamp', true)
+    }
 }
 
 // mainClassName = "it.unitn.ds1.causaldelivery.CausalDelivery"
@@ -35,6 +64,7 @@ compileJava {
 // mainClassName = "it.unitn.ds1.vsync.VirtualSynch"
 // mainClassName = "it.unitn.ds1.twophasecommit.TwoPhaseCommit"
 mainClassName = "it.unitn.ds1.Main"
+
 run {
     standardInput = System.in
 }

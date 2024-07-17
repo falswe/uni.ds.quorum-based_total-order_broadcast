@@ -15,12 +15,19 @@ import it.unitn.ds1.actors.Client;
 import it.unitn.ds1.actors.Coordinator;
 import it.unitn.ds1.actors.Replica;
 
+/**
+ * The Main class is the entry point for the distributed system simulation.
+ * It initializes the actor system, creates the coordinator, replicas, and
+ * clients, and sends initial messages.
+ */
 public class Main {
   private static final Logger logger = LoggerFactory.getLogger(Main.class);
-  final static int N_REPLICAS = 2;
-  final static int N_CLIENTS = 1;
+  final static int N_REPLICAS = 2; // Number of replicas
+  final static int N_CLIENTS = 1; // Number of clients
 
-  // Start message that sends the list of participants to everyone
+  /**
+   * StartMessage is sent to initialize the actors with the list of participants.
+   */
   public static class StartMessage implements Serializable {
     public final List<ActorRef> group;
 
@@ -48,14 +55,15 @@ public class Main {
       clients.add(system.actorOf(Client.props(i), "client" + i));
     }
 
+    // Send start message to coordinator and clients
     StartMessage start = new StartMessage(replicas);
     coordinator.tell(start, ActorRef.noSender());
 
-    // Send join messages to the banks to inform them of all the replicas
     for (ActorRef peer : clients) {
       peer.tell(start, ActorRef.noSender());
     }
 
+    // Wait for user input to terminate
     try {
       logger.info(">>> Press ENTER to exit <<<");
       System.in.read();

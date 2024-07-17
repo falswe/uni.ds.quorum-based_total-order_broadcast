@@ -17,20 +17,25 @@ import java.util.HashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * The Coordinator class extends the Replica class and adds coordination
+ * functionality.
+ * It manages the update process and ensures consistency across replicas.
+ */
 public class Coordinator extends Replica {
   private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
-  protected List<ActorRef> replicas;
+  protected List<ActorRef> replicas; // List of replica actors
   private final Set<ActorRef> ackReceived = new HashSet<>();
 
   // TODO: add epoch and sequence number
 
-  private final static int BROADCAST_TIMEOUT = 1000; // timeout for the broadcast to all replicas, ms
-  private final static int CONFIRMATION_TIMEOUT = 500; // timeout for the alive confirmation from the replica, ms
+  private final static int BROADCAST_TIMEOUT = 1000; // Timeout for the broadcast to all replicas, ms
+  private final static int CONFIRMATION_TIMEOUT = 500; // Timeout for the alive confirmation from the replica, ms
 
   private final Set<ActorRef> replicasAlive = new HashSet<>();
 
   public Coordinator() {
-    super(-1); // the coordinator has the id -1
+    super(-1); // The coordinator has the id -1
   }
 
   static public Props props() {
@@ -51,7 +56,7 @@ public class Coordinator extends Replica {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new BroadcastTimeout(), // the message to send
+        new BroadcastTimeout(), // The message to send
         getContext().system().dispatcher(), getSelf());
   }
 
@@ -59,11 +64,11 @@ public class Coordinator extends Replica {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new ConfirmationTimeout(), // the message to send
+        new ConfirmationTimeout(), // The message to send
         getContext().system().dispatcher(), getSelf());
   }
 
-  // start of the different messages
+  // Messages used by the coordinator.
   public static class UpdateRequest implements Serializable {
     public int new_value;
 
@@ -83,9 +88,8 @@ public class Coordinator extends Replica {
 
   public static class ConfirmationTimeout implements Serializable {
   }
-  // end of message
 
-  // start of the logic when receiving certain messages
+  // Logic when receiving certain messages
   public void onStartMessage(StartMessage msg) {
     this.replicas = new ArrayList<>();
     for (ActorRef b : msg.group) {
@@ -100,7 +104,7 @@ public class Coordinator extends Replica {
 
     UpdateRequest update = new UpdateRequest(msg.new_value);
 
-    // send UPDATE to all the replicas and wait for Q(N/2)+1 ACK messages
+    // Send UPDATE to all the replicas and wait for Q(N/2)+1 ACK messages
     multicast(update);
   }
 
