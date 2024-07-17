@@ -77,38 +77,56 @@ public class Replica extends AbstractActor {
   }
 
   private void onReadRequest(ReadRequest msg) {
-    logger.info("Replica {} received read request", id);
-    getSender().tell(new ReadResponse(value), getSelf());
+    try {
+      logger.info("Replica {} received read request", id);
+      getSender().tell(new ReadResponse(value), getSelf());
+    } catch (Exception e) {
+      logger.error("Replica {} encountered an error during read request", id, e);
+    }
   }
 
   private void onWriteRequest(WriteRequest msg) {
-    logger.info("Replica {} received write request", id);
-    coordinator.tell(new WriteRequest(msg.new_value), getSender());
-    setUpdateTimeout(UPDATE_TIMEOUT);
+    try {
+      logger.info("Replica {} received write request", id);
+      coordinator.tell(new WriteRequest(msg.new_value), getSender());
+      setUpdateTimeout(UPDATE_TIMEOUT);
+    } catch (Exception e) {
+      logger.error("Replica {} encountered an error during write request", id, e);
+    }
   }
 
   private void onUpdateRequest(UpdateRequest msg) {
-    update_received = true;
-    logger.info("Replica {} received update request", id);
-    new_value = msg.new_value;
-    coordinator.tell(new Ack(), getSelf());
-    setWriteOkTimeout(WRITEOK_TIMEOUT);
+    try {
+      update_received = true;
+      logger.info("Replica {} received update request", id);
+      new_value = msg.new_value;
+      coordinator.tell(new Ack(), getSelf());
+      setWriteOkTimeout(WRITEOK_TIMEOUT);
+    } catch (Exception e) {
+      logger.error("Replica {} encountered an error during update request", id, e);
+    }
   }
 
   private void onWriteOk(WriteOk msg) {
-    writeok_received = true;
-    this.value = this.new_value;
+    try {
+      writeok_received = true;
+      this.value = this.new_value;
+    } catch (Exception e) {
+      logger.error("Replica {} encountered an error during write acknowledgment", id, e);
+    }
   }
 
   public void onUpdateTimeout(UpdateTimeout msg) {
     if (!update_received) {
-      // TODO: assume coordinator crashed
+      logger.error("Replica {} did not receive update in time. Coordinator might have crashed.", id);
+      // TODO: Implement coordinator crash recovery
     }
   }
 
   public void onWriteOkTimeout(WriteOkTimeout msg) {
     if (!writeok_received) {
-      // TODO: assume coordinator crashed
+      logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.", id);
+      // TODO: Implement coordinator crash recovery
     }
   }
 

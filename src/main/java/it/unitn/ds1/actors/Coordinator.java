@@ -48,8 +48,9 @@ public class Coordinator extends Replica {
   }
 
   void multicast(Serializable m) {
-    for (ActorRef r : replicas)
+    for (ActorRef r : replicas) {
       r.tell(m, getSelf());
+    }
   }
 
   void setBroadcastTimeout(int time) {
@@ -100,30 +101,40 @@ public class Coordinator extends Replica {
   }
 
   private void onWriteRequest(WriteRequest msg) {
-    logger.info("Coordinator received write request");
+    try {
+      logger.info("Coordinator received write request");
 
-    UpdateRequest update = new UpdateRequest(msg.new_value);
+      UpdateRequest update = new UpdateRequest(msg.new_value);
 
-    // Send UPDATE to all the replicas and wait for Q(N/2)+1 ACK messages
-    multicast(update);
+      // Send UPDATE to all the replicas and wait for Q(N/2)+1 ACK messages
+      multicast(update);
+    } catch (Exception e) {
+      logger.error("Coordinator encountered an error during write request", e);
+    }
   }
 
   private void onAck(Ack msg) {
-    // TODO: manage acks for different write request
-    ackReceived.add(getSender());
-    // TODO: adapt id of the replica on the logger
-    logger.info("Received Ack from Replica {}", getSender());
-    if (enoughAckReceived()) {
-      WriteOk write = new WriteOk();
-      multicast(write);
+    try {
+      ackReceived.add(getSender());
+      logger.info("Received Ack from Replica {}", getSender());
+      if (enoughAckReceived()) {
+        WriteOk write = new WriteOk();
+        multicast(write);
+      }
+    } catch (Exception e) {
+      logger.error("Coordinator encountered an error during acknowledgment handling", e);
     }
   }
 
   public void onBroadcastTimeout(BroadcastTimeout msg) {
-    setBroadcastTimeout(BROADCAST_TIMEOUT);
-    AreYouStillAlive confAlive = new AreYouStillAlive();
-    multicast(confAlive);
-    setConfirmationTimeout(CONFIRMATION_TIMEOUT);
+    try {
+      setBroadcastTimeout(BROADCAST_TIMEOUT);
+      AreYouStillAlive confAlive = new AreYouStillAlive();
+      multicast(confAlive);
+      setConfirmationTimeout(CONFIRMATION_TIMEOUT);
+    } catch (Exception e) {
+      logger.error("Coordinator encountered an error during broadcast timeout handling", e);
+    }
   }
 
   public void onReplicaAlive(ReplicaAlive msg) {
@@ -131,8 +142,13 @@ public class Coordinator extends Replica {
   }
 
   public void onConfirmationTimeout(ConfirmationTimeout msg) {
-    if (replicas.size() != replicasAlive.size()) {
-      // TODO: remove the replicas which are crashed
+    try {
+      if (replicas.size() != replicasAlive.size()) {
+        logger.warn("Some replicas did not respond. Initiating failure handling.");
+        // TODO: remove the replicas which are crashed
+      }
+    } catch (Exception e) {
+      logger.error("Coordinator encountered an error during confirmation timeout handling", e);
     }
   }
 

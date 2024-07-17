@@ -37,39 +37,41 @@ public class Main {
   }
 
   public static void main(String[] args) {
-    // Create the actor system
     final ActorSystem system = ActorSystem.create("main");
 
-    // Create the coordinator
-    ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
-
-    // Create replicas and put them into a list
-    List<ActorRef> replicas = new ArrayList<>();
-    for (int i = 0; i < N_REPLICAS; i++) {
-      replicas.add(system.actorOf(Replica.props(i, coordinator), "replica" + i));
-    }
-
-    // Create clients and put them into a list
-    List<ActorRef> clients = new ArrayList<>();
-    for (int i = 0; i < N_CLIENTS; i++) {
-      clients.add(system.actorOf(Client.props(i), "client" + i));
-    }
-
-    // Send start message to coordinator and clients
-    StartMessage start = new StartMessage(replicas);
-    coordinator.tell(start, ActorRef.noSender());
-
-    for (ActorRef peer : clients) {
-      peer.tell(start, ActorRef.noSender());
-    }
-
-    // Wait for user input to terminate
     try {
+      // Create the coordinator
+      ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+
+      // Create replicas and put them into a list
+      List<ActorRef> replicas = new ArrayList<>();
+      for (int i = 0; i < N_REPLICAS; i++) {
+        replicas.add(system.actorOf(Replica.props(i, coordinator), "replica" + i));
+      }
+
+      // Create clients and put them into a list
+      List<ActorRef> clients = new ArrayList<>();
+      for (int i = 0; i < N_CLIENTS; i++) {
+        clients.add(system.actorOf(Client.props(i), "client" + i));
+      }
+
+      // Send start message to coordinator and clients
+      StartMessage start = new StartMessage(replicas);
+      coordinator.tell(start, ActorRef.noSender());
+
+      for (ActorRef peer : clients) {
+        peer.tell(start, ActorRef.noSender());
+      }
+
+      // Wait for user input to terminate
       logger.info(">>> Press ENTER to exit <<<");
       System.in.read();
     } catch (IOException ioe) {
-      logger.error("IOException occurred", ioe);
+      logger.error("IOException occurred during input reading", ioe);
+    } catch (Exception e) {
+      logger.error("Unexpected error occurred", e);
+    } finally {
+      system.terminate();
     }
-    system.terminate();
   }
 }
