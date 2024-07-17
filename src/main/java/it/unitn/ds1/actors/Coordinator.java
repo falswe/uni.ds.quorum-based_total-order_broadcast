@@ -6,10 +6,12 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Main.StartMessage;
 import it.unitn.ds1.actors.Client.WriteRequest;
+import scala.concurrent.duration.Duration;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
 
 import org.slf4j.Logger;
@@ -21,6 +23,11 @@ public class Coordinator extends Replica {
   private final Set<ActorRef> ackReceived = new HashSet<>();
 
   // TODO: add epoch and sequence number
+
+  private final static int BROADCAST_TIMEOUT = 1000; // timeout for the broadcast to all replicas, ms
+  private final static int CONFIRMATION_TIMEOUT = 500; // timeout for the alive confirmation from the replica, ms
+
+  private final Set<ActorRef> replicasAlive = new HashSet<>();
 
   public Coordinator() {
     super(-1); // the coordinator has the id -1
@@ -40,6 +47,22 @@ public class Coordinator extends Replica {
       r.tell(m, getSelf());
   }
 
+  void setBroadcastTimeout(int time) {
+    getContext().system().scheduler().scheduleOnce(
+        Duration.create(time, TimeUnit.MILLISECONDS),
+        getSelf(),
+        new BroadcastTimeout(), // the message to send
+        getContext().system().dispatcher(), getSelf());
+  }
+
+  void setConfirmationTimeout(int time) {
+    getContext().system().scheduler().scheduleOnce(
+        Duration.create(time, TimeUnit.MILLISECONDS),
+        getSelf(),
+        new ConfirmationTimeout(), // the message to send
+        getContext().system().dispatcher(), getSelf());
+  }
+
   // start of the different messages
   public static class UpdateRequest implements Serializable {
     public int new_value;
@@ -51,6 +74,15 @@ public class Coordinator extends Replica {
 
   public static class WriteOk implements Serializable {
   }
+
+  public static class BroadcastTimeout implements Serializable {
+  }
+
+  public static class AreYouStillAlive implements Serializable {
+  }
+
+  public static class ConfirmationTimeout implements Serializable {
+  }
   // end of message
 
   // start of the logic when receiving certain messages
@@ -60,6 +92,7 @@ public class Coordinator extends Replica {
       this.replicas.add(b);
     }
     logger.info("Coordinator starting with {} replica(s)", msg.group.size());
+    setBroadcastTimeout(BROADCAST_TIMEOUT);
   }
 
   private void onWriteRequest(WriteRequest msg) {
@@ -82,12 +115,33 @@ public class Coordinator extends Replica {
     }
   }
 
+  public void onBroadcastTimeout(BroadcastTimeout msg) {
+    setBroadcastTimeout(BROADCAST_TIMEOUT);
+    AreYouStillAlive confAlive = new AreYouStillAlive();
+    multicast(confAlive);
+    setConfirmationTimeout(CONFIRMATION_TIMEOUT);
+  }
+
+  public void onReplicaAlive(ReplicaAlive msg) {
+    replicasAlive.add(getSender());
+  }
+
+  public void onConfirmationTimeout(ConfirmationTimeout msg) {
+    if (replicas.size() != replicasAlive.size()) {
+      // TODO: remove the replicas which are crashed
+    }
+  }
+
   @Override
   public Receive createReceive() {
     return receiveBuilder()
         .match(StartMessage.class, this::onStartMessage)
         .match(WriteRequest.class, this::onWriteRequest)
+        .match(BroadcastTimeout.class, this::onBroadcastTimeout)
         .match(Ack.class, this::onAck)
+        .match(BroadcastTimeout.class, this::onBroadcastTimeout)
+        .match(ReplicaAlive.class, this::onReplicaAlive)
+        .match(ConfirmationTimeout.class, this::onConfirmationTimeout)
         .build();
   }
 }
