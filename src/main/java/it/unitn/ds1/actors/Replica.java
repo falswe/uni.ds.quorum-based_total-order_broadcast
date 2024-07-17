@@ -1,19 +1,13 @@
 package it.unitn.ds1.actors;
 
-import java.io.Serializable;
-
 import akka.actor.*;
-import it.unitn.ds1.actors.Client.ReadRequest;
-import it.unitn.ds1.actors.Client.ReadResponse;
-import it.unitn.ds1.actors.Client.WriteRequest;
-import it.unitn.ds1.actors.Coordinator.AreYouStillAlive;
-import it.unitn.ds1.actors.Coordinator.UpdateRequest;
-import it.unitn.ds1.actors.Coordinator.WriteOk;
-import scala.concurrent.duration.Duration;
-
-import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.concurrent.duration.Duration;
+
+import it.unitn.ds1.messages.Messages.*;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * The Replica class represents a replica in the distributed system.
@@ -51,7 +45,7 @@ public class Replica extends AbstractActor {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new UpdateTimeout(), // The message to send
+        new UpdateTimeout(),
         getContext().system().dispatcher(), getSelf());
   }
 
@@ -59,21 +53,8 @@ public class Replica extends AbstractActor {
     getContext().system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         getSelf(),
-        new UpdateTimeout(), // The message to send
+        new WriteOkTimeout(),
         getContext().system().dispatcher(), getSelf());
-  }
-
-  // Messages used by the replica.
-  public static class Ack implements Serializable {
-  }
-
-  public static class UpdateTimeout implements Serializable {
-  }
-
-  public static class WriteOkTimeout implements Serializable {
-  }
-
-  public static class ReplicaAlive implements Serializable {
   }
 
   private void onReadRequest(ReadRequest msg) {

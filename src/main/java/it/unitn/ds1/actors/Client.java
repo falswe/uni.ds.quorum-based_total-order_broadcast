@@ -1,16 +1,16 @@
 package it.unitn.ds1.actors;
 
-import java.io.Serializable;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.ArrayList;
-
 import akka.actor.*;
-import it.unitn.ds1.Main.StartMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.concurrent.duration.Duration;
 import scala.util.Random;
+
+import it.unitn.ds1.messages.Messages.*;
+
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 
 /**
  * The Client class represents a client in the distributed system.
@@ -46,28 +46,6 @@ public class Client extends AbstractActor {
   private int randomValue() {
     Random rand = new Random();
     return rand.nextInt();
-  }
-
-  /**
-   * Messages used by the client.
-   */
-  public static class ReadRequest implements Serializable {
-  }
-
-  public static class ReadResponse implements Serializable {
-    public final int value;
-
-    public ReadResponse(int value) {
-      this.value = value;
-    }
-  }
-
-  public static class WriteRequest implements Serializable {
-    public int new_value;
-
-    public WriteRequest(int new_value) {
-      this.new_value = new_value;
-    }
   }
 
   public void onReadResponse(ReadResponse msg) {

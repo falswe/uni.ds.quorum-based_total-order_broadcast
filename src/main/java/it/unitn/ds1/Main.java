@@ -8,12 +8,11 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
-import java.io.Serializable;
-import java.util.Collections;
 
 import it.unitn.ds1.actors.Client;
 import it.unitn.ds1.actors.Coordinator;
 import it.unitn.ds1.actors.Replica;
+import it.unitn.ds1.messages.Messages.StartMessage;
 
 /**
  * The Main class is the entry point for the distributed system simulation.
@@ -24,17 +23,6 @@ public class Main {
   private static final Logger logger = LoggerFactory.getLogger(Main.class);
   final static int N_REPLICAS = 2; // Number of replicas
   final static int N_CLIENTS = 1; // Number of clients
-
-  /**
-   * StartMessage is sent to initialize the actors with the list of participants.
-   */
-  public static class StartMessage implements Serializable {
-    public final List<ActorRef> group;
-
-    public StartMessage(List<ActorRef> group) {
-      this.group = Collections.unmodifiableList(new ArrayList<>(group));
-    }
-  }
 
   public static void main(String[] args) {
     final ActorSystem system = ActorSystem.create("main");
