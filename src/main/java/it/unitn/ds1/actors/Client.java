@@ -56,13 +56,8 @@ public class Client extends AbstractActor {
   public static class WriteRequest implements Serializable {
     public int new_value;
 
-    public WriteRequest(int new_value){
+    public WriteRequest(int new_value) {
       this.new_value = new_value;
-    }
-  }
-
-  public static class WriteResponse implements Serializable {
-    public WriteResponse() {
     }
   }
 
@@ -81,7 +76,7 @@ public class Client extends AbstractActor {
     replicas.get(rand_replica_id).tell(new WriteRequest(rand_new_value), getSelf());
     logger.info("Client {} sent write request to replica {}", id, rand_replica_id);
 
-    //wait a little bit
+    // wait a little bit
     try {
       Thread.sleep(10000); // 1000 millisecondi = 1 secondo
     } catch (InterruptedException e) {

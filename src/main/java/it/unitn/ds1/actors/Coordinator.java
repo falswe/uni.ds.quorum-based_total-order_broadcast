@@ -20,6 +20,8 @@ public class Coordinator extends Replica {
   protected List<ActorRef> replicas;
   private final Set<ActorRef> ackReceived = new HashSet<>();
 
+  // TODO: add epoch and sequence number
+
   public Coordinator() {
     super(-1); // the coordinator has the id -1
   }
@@ -28,29 +30,30 @@ public class Coordinator extends Replica {
     return Props.create(Coordinator.class, () -> new Coordinator());
   }
 
-  private boolean enoughAckReceived(){
-    int Q = (replicas.size()/2) + 1;
+  private boolean enoughAckReceived() {
+    int Q = (replicas.size() / 2) + 1;
     return ackReceived.size() >= Q;
   }
 
   void multicast(Serializable m) {
-    for (ActorRef r: replicas)
+    for (ActorRef r : replicas)
       r.tell(m, getSelf());
   }
 
-  //start of the different messages
+  // start of the different messages
   public static class UpdateRequest implements Serializable {
     public int new_value;
 
-    public UpdateRequest(int new_value){
+    public UpdateRequest(int new_value) {
       this.new_value = new_value;
     }
   }
 
-  public static class WriteOk implements Serializable {}
-  //end of message
+  public static class WriteOk implements Serializable {
+  }
+  // end of message
 
-  //start of the logic when receiving certain messages
+  // start of the logic when receiving certain messages
   public void onStartMessage(StartMessage msg) {
     this.replicas = new ArrayList<>();
     for (ActorRef b : msg.group) {
@@ -63,15 +66,17 @@ public class Coordinator extends Replica {
     logger.info("Coordinator received write request");
 
     UpdateRequest update = new UpdateRequest(msg.new_value);
-    multicast(update);
+
     // send UPDATE to all the replicas and wait for Q(N/2)+1 ACK messages
+    multicast(update);
   }
 
-  private void onAck(Ack msg){
+  private void onAck(Ack msg) {
+    // TODO: manage acks for different write request
     ackReceived.add(getSender());
+    // TODO: adapt id of the replica on the logger
     logger.info("Received Ack from Replica {}", getSender());
-    if(enoughAckReceived())
-    {
+    if (enoughAckReceived()) {
       WriteOk write = new WriteOk();
       multicast(write);
     }

@@ -6,7 +6,6 @@ import akka.actor.*;
 import it.unitn.ds1.actors.Client.ReadRequest;
 import it.unitn.ds1.actors.Client.ReadResponse;
 import it.unitn.ds1.actors.Client.WriteRequest;
-import it.unitn.ds1.actors.Client.WriteResponse;
 import it.unitn.ds1.actors.Coordinator.UpdateRequest;
 import it.unitn.ds1.actors.Coordinator.WriteOk;
 
@@ -35,7 +34,8 @@ public class Replica extends AbstractActor {
     return Props.create(Replica.class, () -> new Replica(id, coordinator));
   }
 
-  public static class Ack implements Serializable {}
+  public static class Ack implements Serializable {
+  }
 
   private void onReadRequest(ReadRequest msg) {
     logger.info("Replica {} received read request", id);
@@ -53,8 +53,7 @@ public class Replica extends AbstractActor {
     coordinator.tell(new Ack(), getSelf());
   }
 
-  private void onWriteOk(WriteOk msg)
-  {
+  private void onWriteOk(WriteOk msg) {
     this.value = this.new_value;
   }
 

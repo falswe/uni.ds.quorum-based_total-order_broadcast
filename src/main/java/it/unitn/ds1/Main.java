@@ -48,7 +48,6 @@ public class Main {
       clients.add(system.actorOf(Client.props(i), "client" + i));
     }
 
-    
     StartMessage start = new StartMessage(replicas);
     coordinator.tell(start, ActorRef.noSender());
 
