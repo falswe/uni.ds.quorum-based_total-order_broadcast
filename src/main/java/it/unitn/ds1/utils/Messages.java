@@ -1,4 +1,4 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.utils;
 
 import java.io.Serializable;
 import java.util.List;

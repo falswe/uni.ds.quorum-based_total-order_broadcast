@@ -12,7 +12,8 @@ import java.io.IOException;
 import it.unitn.ds1.actors.Client;
 import it.unitn.ds1.actors.Coordinator;
 import it.unitn.ds1.actors.Replica;
-import it.unitn.ds1.messages.Messages.StartMessage;
+import it.unitn.ds1.utils.Functions;
+import it.unitn.ds1.utils.Messages.StartMessage;
 
 /**
  * The Main class is the entry point for the distributed system simulation.
@@ -46,10 +47,7 @@ public class Main {
       // Send start message to coordinator and clients
       StartMessage start = new StartMessage(replicas);
       coordinator.tell(start, ActorRef.noSender());
-
-      for (ActorRef peer : clients) {
-        peer.tell(start, ActorRef.noSender());
-      }
+      Functions.multicast(start, clients, ActorRef.noSender());
 
       // Wait for user input to terminate
       logger.info(">>> Press ENTER to exit <<<");

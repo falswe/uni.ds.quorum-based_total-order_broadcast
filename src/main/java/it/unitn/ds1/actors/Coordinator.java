@@ -4,15 +4,13 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.concurrent.duration.Duration;
 
-import it.unitn.ds1.messages.Messages.*;
+import it.unitn.ds1.utils.Functions;
+import it.unitn.ds1.utils.Messages.*;
 
 import java.util.List;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
 
 /**
@@ -44,35 +42,14 @@ public class Coordinator extends Replica {
     return ackReceived.size() >= Q;
   }
 
-  void multicast(Serializable m) {
-    for (ActorRef r : replicas) {
-      r.tell(m, getSelf());
-    }
-  }
-
-  void setBroadcastTimeout(int time) {
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(time, TimeUnit.MILLISECONDS),
-        getSelf(),
-        new BroadcastTimeout(),
-        getContext().system().dispatcher(), getSelf());
-  }
-
-  void setConfirmationTimeout(int time) {
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(time, TimeUnit.MILLISECONDS),
-        getSelf(),
-        new ConfirmationTimeout(),
-        getContext().system().dispatcher(), getSelf());
-  }
-
   public void onStartMessage(StartMessage msg) {
     this.replicas = new ArrayList<>();
     for (ActorRef b : msg.group) {
       this.replicas.add(b);
     }
     logger.info("Coordinator starting with {} replica(s)", msg.group.size());
-    setBroadcastTimeout(BROADCAST_TIMEOUT);
+    Functions.setTimeout(getContext(), BROADCAST_TIMEOUT, getSelf(), new BroadcastTimeout());
+    ;
   }
 
   private void onWriteRequest(WriteRequest msg) {
@@ -81,7 +58,7 @@ public class Coordinator extends Replica {
 
       UpdateRequest update = new UpdateRequest(msg.new_value);
 
-      multicast(update);
+      Functions.multicast(update, replicas, getSelf());
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during write request", e);
     }
@@ -93,7 +70,7 @@ public class Coordinator extends Replica {
       logger.info("Received Ack from Replica {}", getSender());
       if (enoughAckReceived()) {
         WriteOk write = new WriteOk();
-        multicast(write);
+        Functions.multicast(write, replicas, getSelf());
       }
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during acknowledgment handling", e);
@@ -102,10 +79,10 @@ public class Coordinator extends Replica {
 
   public void onBroadcastTimeout(BroadcastTimeout msg) {
     try {
-      setBroadcastTimeout(BROADCAST_TIMEOUT);
+      Functions.setTimeout(getContext(), BROADCAST_TIMEOUT, getSelf(), new BroadcastTimeout());
       AreYouStillAlive confAlive = new AreYouStillAlive();
-      multicast(confAlive);
-      setConfirmationTimeout(CONFIRMATION_TIMEOUT);
+      Functions.multicast(confAlive, replicas, getSelf());
+      Functions.setTimeout(getContext(), CONFIRMATION_TIMEOUT, getSelf(), new ConfirmationTimeout());
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during broadcast timeout handling", e);
     }

@@ -1,12 +1,12 @@
 package it.unitn.ds1.actors;
 
 import akka.actor.*;
+import it.unitn.ds1.utils.Messages.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.concurrent.duration.Duration;
 import scala.util.Random;
-
-import it.unitn.ds1.messages.Messages.*;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -38,16 +38,6 @@ public class Client extends AbstractActor {
     logger.info("Client {} starting with {} replica(s)", id, sm.group.size());
   }
 
-  private int randomReplica() {
-    Random rand = new Random();
-    return rand.nextInt(replicas.size());
-  }
-
-  private int randomValue() {
-    Random rand = new Random();
-    return rand.nextInt();
-  }
-
   public void onReadResponse(ReadResponse msg) {
     logger.info("Client {} read {}", id, msg.value);
   }
@@ -55,12 +45,12 @@ public class Client extends AbstractActor {
   public void onStartMessage(StartMessage msg) {
     try {
       setReplicas(msg);
-      int rand_replica_id = randomReplica();
+      int rand_replica_id = new Random().nextInt(replicas.size());
       replicas.get(rand_replica_id).tell(new ReadRequest(), getSelf());
       logger.info("Client {} sent read request to replica {}", id, rand_replica_id);
 
-      rand_replica_id = randomReplica();
-      int rand_new_value = randomValue();
+      rand_replica_id = new Random().nextInt(replicas.size());
+      int rand_new_value = new Random().nextInt();
       replicas.get(rand_replica_id).tell(new WriteRequest(rand_new_value), getSelf());
       logger.info("Client {} sent write request to replica {}", id, rand_replica_id);
 
@@ -68,7 +58,8 @@ public class Client extends AbstractActor {
       getContext().system().scheduler().scheduleOnce(
           Duration.create(10, TimeUnit.SECONDS),
           () -> {
-            int new_rand_replica_id = randomReplica();
+            int new_rand_replica_id = new Random().nextInt(replicas.size());
+            ;
             replicas.get(new_rand_replica_id).tell(new ReadRequest(), getSelf());
             logger.info("Client {} sent read request to replica {}", id, new_rand_replica_id);
           },

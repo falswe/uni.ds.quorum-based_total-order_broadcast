@@ -3,11 +3,9 @@ package it.unitn.ds1.actors;
 import akka.actor.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.concurrent.duration.Duration;
 
-import it.unitn.ds1.messages.Messages.*;
-
-import java.util.concurrent.TimeUnit;
+import it.unitn.ds1.utils.Functions;
+import it.unitn.ds1.utils.Messages.*;
 
 /**
  * The Replica class represents a replica in the distributed system.
@@ -40,23 +38,6 @@ public class Replica extends AbstractActor {
     return Props.create(Replica.class, () -> new Replica(id, coordinator));
   }
 
-  // Schedule a Timeout message in specified time
-  void setUpdateTimeout(int time) {
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(time, TimeUnit.MILLISECONDS),
-        getSelf(),
-        new UpdateTimeout(),
-        getContext().system().dispatcher(), getSelf());
-  }
-
-  void setWriteOkTimeout(int time) {
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(time, TimeUnit.MILLISECONDS),
-        getSelf(),
-        new WriteOkTimeout(),
-        getContext().system().dispatcher(), getSelf());
-  }
-
   private void onReadRequest(ReadRequest msg) {
     try {
       logger.info("Replica {} received read request", id);
@@ -70,7 +51,7 @@ public class Replica extends AbstractActor {
     try {
       logger.info("Replica {} received write request", id);
       coordinator.tell(new WriteRequest(msg.new_value), getSender());
-      setUpdateTimeout(UPDATE_TIMEOUT);
+      Functions.setTimeout(getContext(), UPDATE_TIMEOUT, getSelf(), new UpdateTimeout());
     } catch (Exception e) {
       logger.error("Replica {} encountered an error during write request", id, e);
     }
@@ -82,7 +63,7 @@ public class Replica extends AbstractActor {
       logger.info("Replica {} received update request", id);
       new_value = msg.new_value;
       coordinator.tell(new Ack(), getSelf());
-      setWriteOkTimeout(WRITEOK_TIMEOUT);
+      Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(), new WriteOkTimeout());
     } catch (Exception e) {
       logger.error("Replica {} encountered an error during update request", id, e);
     }
