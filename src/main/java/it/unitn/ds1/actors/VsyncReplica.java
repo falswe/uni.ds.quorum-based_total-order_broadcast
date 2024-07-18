@@ -11,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import it.unitn.ds1.actors.VsyncClient.RdRqMsg;
-import it.unitn.ds1.vsync.VirtualSynchManager.CrashReportMsg;
-import it.unitn.ds1.vsync.VirtualSynchManager.JoinNodeMsg;
+import it.unitn.ds1.actors.VsyncCoordinator.JoinNodeMsg;
+import it.unitn.ds1.actors.VsyncCoordinator.CrashReportMsg;
 
 public class VsyncReplica extends AbstractActor {
 
@@ -32,7 +32,7 @@ public class VsyncReplica extends AbstractActor {
   private boolean joining;
 
   // participants (initial group, current and proposed views)
-  private final Set<ActorRef> group;
+  private final Set<ActorRef> replicas;
   private final Set<ActorRef> currentView;
   private final Map<Integer, Set<ActorRef>> proposedView;
   private int viewId;
@@ -73,7 +73,7 @@ public class VsyncReplica extends AbstractActor {
     this.seqno = 1;
     this.joining = joining;
     this.viewId = 0;
-    this.group = new HashSet<>();
+    this.replicas = new HashSet<>();
     this.currentView = new HashSet<>();
     this.proposedView = new HashMap<>();
     this.membersSeqno = new HashMap<>();
@@ -337,16 +337,17 @@ public class VsyncReplica extends AbstractActor {
   /*-- Actor message handlers ---------------------------------------------------------- */
 
   private void onRdRqMsg(RdRqMsg msg) {
-    
+    logger.info("Replica {} received read request from client {}", getSelf(), getSender());
+    getSender().tell(new RdRspMsg(value), getSelf());
   }
 
   private void onJoinGroupMsg(JoinGroupMsg msg) {
 
     // initialize group
-    group.addAll(msg.group);
+    replicas.addAll(msg.group);
 
     // at the beginning, the view includes all nodes in the group
-    currentView.addAll(group);
+    currentView.addAll(replicas);
   }
 
   private void onSendChatMsg(SendChatMsg msg) {
@@ -608,6 +609,7 @@ public class VsyncReplica extends AbstractActor {
   public Receive createReceive() {
     return receiveBuilder()
         .match(JoinGroupMsg.class, this::onJoinGroupMsg)
+        .match(RdRqMsg.class, this::onRdRqMsg)
         .match(SendChatMsg.class, this::onSendChatMsg)
         .match(ChatMsg.class, this::onChatMsg)
         .match(StableChatMsg.class, this::onStableChatMsg)

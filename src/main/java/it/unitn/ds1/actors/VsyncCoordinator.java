@@ -1,23 +1,22 @@
 package it.unitn.ds1.actors;
 import akka.actor.*;
+import it.unitn.ds1.actors.VsyncReplica.JoinGroupMsg;
+import it.unitn.ds1.actors.VsyncReplica.ViewChangeMsg;
 
 import java.io.Serializable;
 import java.util.*;
 
-import it.unitn.ds1.vsync.VirtualSynchActor.JoinGroupMsg;
-import it.unitn.ds1.vsync.VirtualSynchActor.ViewChangeMsg;
-
 public class VsyncCoordinator extends AbstractActor {
 
   // participants (initial group, current and proposed views)
-  private final List<ActorRef> group;
+  private final List<ActorRef> replicas;
   private final Set<ActorRef> view;
   private int viewId;
 
   /*-- Actor constructors --------------------------------------------------- */
   public VsyncCoordinator() {
-    group = new ArrayList<>();
-    view = new HashSet<>(group);
+    replicas = new ArrayList<>();
+    view = new HashSet<>(replicas);
     viewId = 0;
   }
 
@@ -53,12 +52,12 @@ public class VsyncCoordinator extends AbstractActor {
     // initialize group
     for (ActorRef r: msg.group) {
       if (!r.equals(getSelf())) {
-        this.group.add(r);
+        this.replicas.add(r);
       }
     }
 
     // at the beginning, the view includes all nodes in the group
-    view.addAll(group);
+    view.addAll(replicas);
     //System.out.println(getSelf().path().name() + " initial view " + view);
   }
 
