@@ -1,4 +1,4 @@
-package it.unitn.ds1.actors;
+package it.unitn.ds1.old_actors;
 
 import akka.actor.*;
 import org.slf4j.Logger;

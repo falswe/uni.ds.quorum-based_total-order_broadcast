@@ -1,4 +1,4 @@
-package it.unitn.ds1.actors;
+package it.unitn.ds1.old_actors;
 
 import akka.actor.*;
 import it.unitn.ds1.utils.Messages.*;

@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
 
-import it.unitn.ds1.actors.Client;
-import it.unitn.ds1.actors.Coordinator;
-import it.unitn.ds1.actors.Replica;
+import it.unitn.ds1.old_actors.Client;
+import it.unitn.ds1.old_actors.Coordinator;
+import it.unitn.ds1.old_actors.Replica;
 import it.unitn.ds1.utils.Functions;
 import it.unitn.ds1.utils.Messages.StartMessage;
 
