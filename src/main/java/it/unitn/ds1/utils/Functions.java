@@ -7,6 +7,8 @@ import akka.actor.*;
 import scala.concurrent.duration.Duration;
 
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class Functions {
   /**
@@ -30,5 +32,25 @@ public class Functions {
     for (ActorRef r : receivers) {
       r.tell(m, sender);
     }
+  }
+
+  // Extracts the ID out of a string like
+  // Actor[akka://Quorum-based-Total-Order-Broadcast/user/client0#-293215613]
+  public static String getId(ActorRef actor) {
+    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
+    Matcher matcher = regex.matcher(actor.toString());
+    if (matcher.find()) {
+      return matcher.group(2);
+    }
+    return null;
+  }
+
+  public static String getShortForm(ActorRef actor) {
+    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
+    Matcher matcher = regex.matcher(actor.toString());
+    if (matcher.find()) {
+      return matcher.group(1) + " " + matcher.group(2);
+    }
+    return null; // Return null or handle the case when no match is found
   }
 }

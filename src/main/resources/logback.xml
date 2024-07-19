@@ -4,7 +4,7 @@
     <!-- Console Appender -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss}\t%-5level\t%logger{36}\t %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %15replace(%logger){'it\.unitn\.ds1\.actors\.',''}\t%msg%n</pattern>
             <!--<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>-->
         </encoder>
     </appender>

@@ -10,11 +10,14 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import it.unitn.ds1.actors.VsyncClient.RdRqMsg;
-import it.unitn.ds1.actors.VsyncCoordinator.JoinNodeMsg;
-import it.unitn.ds1.actors.VsyncCoordinator.CrashReportMsg;
+import it.unitn.ds1.actors.Client.RdRqMsg;
+import it.unitn.ds1.actors.Client.WrRqMsg;
+import it.unitn.ds1.actors.Coordinator.JoinNodeMsg;
+import it.unitn.ds1.actors.Coordinator.CrashReportMsg;
 
-public class VsyncReplica extends AbstractActor {
+import it.unitn.ds1.utils.Functions;
+
+public class Replica extends AbstractActor {
 
   // needed for our logging framework
   private static final Logger logger = LoggerFactory.getLogger(Replica.class);
@@ -23,6 +26,7 @@ public class VsyncReplica extends AbstractActor {
   private int value = 5;
 
   // message sequence number for identification
+  private int epoch;
   private int seqno;
 
   // group manager
@@ -35,10 +39,12 @@ public class VsyncReplica extends AbstractActor {
   private final Set<ActorRef> replicas;
   private final Set<ActorRef> currentView;
   private final Map<Integer, Set<ActorRef>> proposedView;
-  private int viewId;
 
   // last sequence number for each node message (to avoid delivering duplicates)
   private final Map<ActorRef, Integer> membersSeqno;
+  
+  // list of sequence number related to the value communicated from the coordinator
+  private final Map<Integer, Integer> seqnoValue;
 
   // unstable messages
   private final Set<ChatMsg> unstableMsgSet;
@@ -68,15 +74,16 @@ public class VsyncReplica extends AbstractActor {
   private boolean willRecover;
 
   /*-- Actor constructors --------------------------------------------------- */
-  public VsyncReplica(ActorRef coordinator, boolean joining) {
+  public Replica(ActorRef coordinator, boolean joining) {
     this.coordinator = coordinator;
-    this.seqno = 1;
+    this.seqno = 0;
     this.joining = joining;
-    this.viewId = 0;
+    this.epoch = 0;
     this.replicas = new HashSet<>();
     this.currentView = new HashSet<>();
     this.proposedView = new HashMap<>();
     this.membersSeqno = new HashMap<>();
+    this.seqnoValue = new HashMap<>();
     this.unstableMsgSet = new HashSet<>();
     this.deferredMsgSet = new HashSet<>();
     this.flushes = new HashMap<>();
@@ -87,7 +94,7 @@ public class VsyncReplica extends AbstractActor {
   }
 
   static public Props props(ActorRef manager, boolean joining) {
-    return Props.create(VsyncReplica.class, () -> new VsyncReplica(manager, joining));
+    return Props.create(Replica.class, () -> new Replica(manager, joining));
   }
 
   /*-- Message classes ------------------------------------------------------ */
@@ -123,6 +130,32 @@ public class VsyncReplica extends AbstractActor {
       this.sender = sender;
       this.seqno = seqno;
       this.content = content;
+    }
+  }
+
+  public static class UpRqMsg implements Serializable {
+    public final int epoch;
+    public final ActorRef sender;
+    public final int seqno;
+    public final int value;
+
+    public UpRqMsg(int epoch, int seqno, ActorRef sender, int value) {
+      this.epoch = epoch;
+      this.sender = sender;
+      this.seqno = seqno;
+      this.value = value;
+    }
+  }
+
+  public static class AckMsg implements Serializable {
+    public final int epoch;
+    public final ActorRef sender;
+    public final int seqno;
+
+    public AckMsg(int epoch, int seqno, ActorRef sender) {
+      this.epoch = epoch;
+      this.sender = sender;
+      this.seqno = seqno;
     }
   }
 
@@ -268,13 +301,13 @@ public class VsyncReplica extends AbstractActor {
       membersSeqno.put(m.sender, m.seqno);
       System.out.println(
           getSelf().path().name() + " delivers " + m.seqno
-              + " from " + m.sender.path().name() + " in view " + (deferred ? m.viewId : this.viewId)
+              + " from " + m.sender.path().name() + " in view " + (deferred ? m.viewId : this.epoch)
               + (deferred ? " (deferred)" : ""));
     }
   }
 
   private boolean canDeliver(int viewId) {
-    return this.viewId == viewId;
+    return this.epoch == viewId;
   }
 
   private void deferredDeliver(int prevViewId, int nextViewId) {
@@ -303,31 +336,31 @@ public class VsyncReplica extends AbstractActor {
   private void installView(int viewId) {
 
     // check if there are messages waiting to be delivered in the new view
-    deferredDeliver(this.viewId, viewId);
+    deferredDeliver(this.epoch, viewId);
 
     // update view ID
-    this.viewId = viewId;
+    this.epoch = viewId;
 
     // System.out.println(getSelf().path().name() + " flushes before view change " +
     // this.viewId + " " + flushes);
 
     // remove flushes, unstable and deferred messages of the old views
-    flushes.entrySet().removeIf(entry -> entry.getKey() < this.viewId);
-    unstableMsgSet.removeIf(unstableMsg -> unstableMsg.viewId < this.viewId);
-    deferredMsgSet.removeIf(deferredMsg -> deferredMsg.viewId <= this.viewId);
+    flushes.entrySet().removeIf(entry -> entry.getKey() < this.epoch);
+    unstableMsgSet.removeIf(unstableMsg -> unstableMsg.viewId < this.epoch);
+    deferredMsgSet.removeIf(deferredMsg -> deferredMsg.viewId <= this.epoch);
 
     // System.out.println(getSelf().path().name() + " flushes after view change " +
     // this.viewId + " " + flushes);
 
     // update current view
     currentView.clear();
-    currentView.addAll(proposedView.get(this.viewId));
+    currentView.addAll(proposedView.get(this.epoch));
 
     // remove proposed view entry as it is not needed anymore
-    proposedView.entrySet().removeIf(entry -> entry.getKey() <= this.viewId);
+    proposedView.entrySet().removeIf(entry -> entry.getKey() <= this.epoch);
 
     System.out.println(
-        getSelf().path().name() + " installs view " + this.viewId + " " + currentView
+        getSelf().path().name() + " installs view " + this.epoch + " " + currentView
             + " with updated proposedView " + proposedView);
 
     // a joining node is a full member now
@@ -337,8 +370,26 @@ public class VsyncReplica extends AbstractActor {
   /*-- Actor message handlers ---------------------------------------------------------- */
 
   private void onRdRqMsg(RdRqMsg msg) {
-    logger.info("Replica {} received read request from client {}", getSelf(), getSender());
+    logger.info("Replica {} received read request from client {}", Functions.getId(getSelf()), Functions.getId(getSender()));
     getSender().tell(new RdRspMsg(value), getSelf());
+  }
+
+  private void onWrRqMsg(WrRqMsg msg) {
+    logger.info("Replica {} received write request from client {} with value {}", Functions.getId(getSelf()), Functions.getId(getSender()),
+        msg.new_value);
+    coordinator.tell(msg, getSelf());
+  }
+
+  private void onUpRqMsg(UpRqMsg msg) {
+    logger.info("Replica {} received UPDATE message from coordinator with value {} with seqno {}", Functions.getId(getSelf()), msg.value, msg.seqno);
+    seqnoValue.put(msg.seqno, msg.value);
+
+    coordinator.tell(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf());
+  }
+
+  private void onAckMsg(AckMsg msg) {
+    logger.info("Replica {} changed the value from {} to {} with seqno {}", Functions.getId(getSelf()), value, seqnoValue.get(msg.seqno), msg.seqno);
+    value = seqnoValue.get(msg.seqno);
   }
 
   private void onJoinGroupMsg(JoinGroupMsg msg) {
@@ -367,14 +418,14 @@ public class VsyncReplica extends AbstractActor {
 
     // prepare chat message and add it to the unstable set
     String content = "Message " + seqno + " in view " + currentView;
-    ChatMsg m = new ChatMsg(viewId, getSelf(), seqno, content);
+    ChatMsg m = new ChatMsg(epoch, getSelf(), seqno, content);
     unstableMsgSet.add(m);
 
     // send message to the group
     int numSent = multicast(m, currentView);
     System.out.println(
         getSelf().path().name() + " multicasts " + m.seqno
-            + " in view " + this.viewId + " to " + (currentView.size() - 1) + " nodes"
+            + " in view " + this.epoch + " to " + (currentView.size() - 1) + " nodes"
             + " (" + numSent + ", " + currentView + ")");
 
     // increase local sequence number (for packet identification)
@@ -463,7 +514,7 @@ public class VsyncReplica extends AbstractActor {
 
     // deliver immediately or ignore the message;
     // used to debug virtual synchrony correctness
-    if (msg.viewId >= this.viewId) {
+    if (msg.viewId >= this.epoch) {
       if (membersSeqno.getOrDefault(msg.sender, 0) < msg.seqno) {
         membersSeqno.put(msg.sender, msg.seqno);
         System.out.println(
@@ -479,7 +530,7 @@ public class VsyncReplica extends AbstractActor {
   private void onViewChangeMsg(ViewChangeMsg msg) {
 
     System.out.println(
-        getSelf().path().name() + " initiates view change " + this.viewId + "->" + msg.viewId
+        getSelf().path().name() + " initiates view change " + this.epoch + "->" + msg.viewId
             + " " + this.proposedView + "->" + msg.proposedView);
 
     // check whether the node is in the view;
@@ -493,7 +544,7 @@ public class VsyncReplica extends AbstractActor {
 
     // first, send all unstable messages (to the nodes in the new view)
     for (ChatMsg unstableMsg : unstableMsgSet) {
-      boolean resend = unstableMsg.viewId == this.viewId;
+      boolean resend = unstableMsg.viewId == this.epoch;
       System.out.println(getSelf().path().name() + " may resend (" + resend + ") " + unstableMsg.seqno + " from "
           + unstableMsg.sender.path().name());
       if (resend) {
@@ -522,7 +573,7 @@ public class VsyncReplica extends AbstractActor {
       getContext().system().scheduler().scheduleOnce(
           Duration.create(500, TimeUnit.MILLISECONDS), // how frequently generate them
           getSelf(), // destination actor reference
-          new FlushTimeoutMsg(this.viewId), // the message to send
+          new FlushTimeoutMsg(this.epoch), // the message to send
           getContext().system().dispatcher(), // system dispatcher
           getSelf() // source of the message (myself)
       );
@@ -610,8 +661,11 @@ public class VsyncReplica extends AbstractActor {
     return receiveBuilder()
         .match(JoinGroupMsg.class, this::onJoinGroupMsg)
         .match(RdRqMsg.class, this::onRdRqMsg)
+        .match(WrRqMsg.class, this::onWrRqMsg)
+        .match(UpRqMsg.class, this::onUpRqMsg)
         .match(SendChatMsg.class, this::onSendChatMsg)
         .match(ChatMsg.class, this::onChatMsg)
+        .match(AckMsg.class, this::onAckMsg)
         .match(StableChatMsg.class, this::onStableChatMsg)
         .match(StableTimeoutMsg.class, this::onStableTimeoutMsg)
         .match(ViewChangeMsg.class, this::onViewChangeMsg)

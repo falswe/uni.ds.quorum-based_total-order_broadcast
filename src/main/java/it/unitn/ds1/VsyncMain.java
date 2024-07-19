@@ -1,18 +1,18 @@
 package it.unitn.ds1;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import it.unitn.ds1.actors.VsyncClient;
-import it.unitn.ds1.actors.VsyncCoordinator;
-import it.unitn.ds1.actors.VsyncReplica;
-import it.unitn.ds1.actors.VsyncReplica.JoinGroupMsg;
+import it.unitn.ds1.actors.Client;
+import it.unitn.ds1.actors.Coordinator;
+import it.unitn.ds1.actors.Replica;
+import it.unitn.ds1.actors.Replica.JoinGroupMsg;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
 
 public class VsyncMain {
-  final static int N_REPLICAS = 2;
-  final static int N_CLIENTS = 1;
+  final static int N_REPLICAS = 5;
+  final static int N_CLIENTS = 3;
 
   public static void main(String[] args) {
 
@@ -20,18 +20,18 @@ public class VsyncMain {
     final ActorSystem system = ActorSystem.create("Quorum-based-Total-Order-Broadcast");
 
     // Create a coordinator of the system
-    ActorRef coordinator = system.actorOf(VsyncCoordinator.props(), "coordinator");
+    ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
 
     // Create nodes and put them to a list
     List<ActorRef> replicas = new ArrayList<>();
     for (int i=0; i<N_REPLICAS; i++) {
-      replicas.add(system.actorOf(VsyncReplica.props(coordinator, false), "replica" + i));
+      replicas.add(system.actorOf(Replica.props(coordinator, false), "replica" + i));
     }
 
     // Create nodes and put them to a list
     List<ActorRef> clients = new ArrayList<>();
     for (int i=0; i<N_CLIENTS; i++) {
-      clients.add(system.actorOf(VsyncClient.props(), "client" + i));
+      clients.add(system.actorOf(Client.props(), "client" + i));
     }
 
     // Send join messages to the manager and the nodes to inform them of the whole group
