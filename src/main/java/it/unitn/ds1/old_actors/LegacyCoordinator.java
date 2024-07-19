@@ -18,8 +18,8 @@ import java.util.HashSet;
  * functionality.
  * It manages the update process and ensures consistency across replicas.
  */
-public class Coordinator extends Replica {
-  private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
+public class LegacyCoordinator extends LegacyReplica {
+  private static final Logger logger = LoggerFactory.getLogger(LegacyCoordinator.class);
   protected List<ActorRef> replicas; // List of replica actors
   private final Set<ActorRef> ackReceived = new HashSet<>();
   private final Set<ActorRef> replicasAlive = new HashSet<>();
@@ -29,12 +29,12 @@ public class Coordinator extends Replica {
   private final static int BROADCAST_TIMEOUT = 1000; // Timeout for the broadcast to all replicas, ms
   private final static int CONFIRMATION_TIMEOUT = 500; // Timeout for the alive confirmation from the replica, ms
 
-  public Coordinator() {
+  public LegacyCoordinator() {
     super(-1); // The coordinator has the id -1
   }
 
   static public Props props() {
-    return Props.create(Coordinator.class, () -> new Coordinator());
+    return Props.create(LegacyCoordinator.class, () -> new LegacyCoordinator());
   }
 
   private boolean enoughAckReceived() {

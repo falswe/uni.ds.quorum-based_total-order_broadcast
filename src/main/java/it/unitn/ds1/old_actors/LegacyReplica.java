@@ -11,8 +11,8 @@ import it.unitn.ds1.utils.Messages.*;
  * The Replica class represents a replica in the distributed system.
  * It handles read and write requests and coordinates with the Coordinator.
  */
-public class Replica extends AbstractActor {
-  private static final Logger logger = LoggerFactory.getLogger(Replica.class);
+public class LegacyReplica extends AbstractActor {
+  private static final Logger logger = LoggerFactory.getLogger(LegacyReplica.class);
   protected final int id; // Replica ID
   protected ActorRef coordinator; // Reference to the coordinator actor
   private int value = 5; // Initial value of the replica
@@ -23,19 +23,19 @@ public class Replica extends AbstractActor {
   private boolean update_received = false;
   private boolean writeok_received = false;
 
-  public Replica(int id, ActorRef coordinator) {
+  public LegacyReplica(int id, ActorRef coordinator) {
     super();
     this.id = id;
     this.coordinator = coordinator;
   }
 
-  public Replica(int id) {
+  public LegacyReplica(int id) {
     super();
     this.id = id;
   }
 
   static public Props props(int id, ActorRef coordinator) {
-    return Props.create(Replica.class, () -> new Replica(id, coordinator));
+    return Props.create(LegacyReplica.class, () -> new LegacyReplica(id, coordinator));
   }
 
   private void onReadRequest(ReadRequest msg) {

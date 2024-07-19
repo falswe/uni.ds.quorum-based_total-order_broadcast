@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
 
-import it.unitn.ds1.old_actors.Client;
-import it.unitn.ds1.old_actors.Coordinator;
-import it.unitn.ds1.old_actors.Replica;
+import it.unitn.ds1.old_actors.LegacyClient;
+import it.unitn.ds1.old_actors.LegacyCoordinator;
+import it.unitn.ds1.old_actors.LegacyReplica;
 import it.unitn.ds1.utils.Functions;
 import it.unitn.ds1.utils.Messages.StartMessage;
 
@@ -30,18 +30,18 @@ public class Main {
 
     try {
       // Create the coordinator
-      ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+      ActorRef coordinator = system.actorOf(LegacyCoordinator.props(), "coordinator");
 
       // Create replicas and put them into a list
       List<ActorRef> replicas = new ArrayList<>();
       for (int i = 0; i < N_REPLICAS; i++) {
-        replicas.add(system.actorOf(Replica.props(i, coordinator), "replica" + i));
+        replicas.add(system.actorOf(LegacyReplica.props(i, coordinator), "replica" + i));
       }
 
       // Create clients and put them into a list
       List<ActorRef> clients = new ArrayList<>();
       for (int i = 0; i < N_CLIENTS; i++) {
-        clients.add(system.actorOf(Client.props(i), "client" + i));
+        clients.add(system.actorOf(LegacyClient.props(i), "client" + i));
       }
 
       // Send start message to coordinator and clients

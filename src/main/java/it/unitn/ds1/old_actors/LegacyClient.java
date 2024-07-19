@@ -16,19 +16,19 @@ import java.util.ArrayList;
  * The Client class represents a client in the distributed system.
  * It sends read and write requests to replicas.
  */
-public class Client extends AbstractActor {
-  private static final Logger logger = LoggerFactory.getLogger(Client.class);
+public class LegacyClient extends AbstractActor {
+  private static final Logger logger = LoggerFactory.getLogger(LegacyClient.class);
   protected final int id; // Client ID
   protected List<ActorRef> replicas; // List of replica actors
 
-  public Client(int id) {
+  public LegacyClient(int id) {
     super();
     this.id = id;
     this.replicas = new ArrayList<>();
   }
 
   static public Props props(int id) {
-    return Props.create(Client.class, () -> new Client(id));
+    return Props.create(LegacyClient.class, () -> new LegacyClient(id));
   }
 
   private void setReplicas(StartMessage sm) {
