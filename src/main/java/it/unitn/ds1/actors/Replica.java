@@ -14,13 +14,27 @@ import it.unitn.ds1.actors.Client.RdRqMsg;
 import it.unitn.ds1.actors.Client.WrRqMsg;
 import it.unitn.ds1.actors.Coordinator.JoinNodeMsg;
 import it.unitn.ds1.actors.Coordinator.CrashReportMsg;
-
+import it.unitn.ds1.actors.Coordinator.HeartbeatMsg;
+import it.unitn.ds1.actors.Coordinator.HeartbeatPeriod;
 import it.unitn.ds1.utils.Functions;
 
 public class Replica extends AbstractActor {
 
   // needed for our logging framework
   private static final Logger logger = LoggerFactory.getLogger(Replica.class);
+
+  // timeouts
+  private final static int UPD_TIMEOUT = 1000; // Timeout for the update from coordinator, ms
+  private final static int WRITEOK_TIMEOUT = 1000; // Timeout for the writeok from coordinator, ms
+  private final static int COORDINATOR_HEARTBEAT_TIMEOUT = 1200; // Timeout for the heartbeat from coordinator, ms
+
+  // used to start the hearbeat period timeout
+  static boolean firstHeartbeatReceived = false;
+
+  private boolean heartbeatReceived = false;
+
+  private final Map<Map<ActorRef, Integer>, Boolean> membersUpdRcvd;
+  private final Map<Integer, Boolean> AckRcvd;
 
   // holding the actual current value of the replica
   private int value = 5;
@@ -42,8 +56,9 @@ public class Replica extends AbstractActor {
 
   // last sequence number for each node message (to avoid delivering duplicates)
   private final Map<ActorRef, Integer> membersSeqno;
-  
-  // list of sequence number related to the value communicated from the coordinator
+
+  // list of sequence number related to the value communicated from the
+  // coordinator
   private final Map<Integer, Integer> seqnoValue;
 
   // unstable messages
@@ -58,7 +73,7 @@ public class Replica extends AbstractActor {
   private final Random rnd;
 
   // type of the next simulated crash
-  enum CrashType {
+  public enum CrashType {
     NONE,
     ChatMsg,
     StableChatMsg,
@@ -87,6 +102,8 @@ public class Replica extends AbstractActor {
     this.unstableMsgSet = new HashSet<>();
     this.deferredMsgSet = new HashSet<>();
     this.flushes = new HashMap<>();
+    this.membersUpdRcvd = new HashMap<>();
+    this.AckRcvd = new HashMap<>();
     this.rnd = new Random();
     this.nextCrash = CrashType.NONE;
     this.nextCrashAfter = 0;
@@ -133,16 +150,18 @@ public class Replica extends AbstractActor {
     }
   }
 
-  public static class UpRqMsg implements Serializable {
-    public final int epoch;
+  public static class UpdRqMsg implements Serializable {
     public final ActorRef sender;
+    public final int epoch;
     public final int seqno;
+    public final int op_cnt;
     public final int value;
 
-    public UpRqMsg(int epoch, int seqno, ActorRef sender, int value) {
-      this.epoch = epoch;
+    public UpdRqMsg(ActorRef sender, int epoch, int seqno, int op_cnt, int value) {
       this.sender = sender;
+      this.epoch = epoch;
       this.seqno = seqno;
+      this.op_cnt = op_cnt;
       this.value = value;
     }
   }
@@ -155,6 +174,24 @@ public class Replica extends AbstractActor {
     public AckMsg(int epoch, int seqno, ActorRef sender) {
       this.epoch = epoch;
       this.sender = sender;
+      this.seqno = seqno;
+    }
+  }
+
+  public static class UpdTimeout implements Serializable {
+    public final ActorRef c_snd;
+    public final int op_cnt;
+
+    public UpdTimeout(final ActorRef c_snd, final int op_cnt) {
+      this.c_snd = c_snd;
+      this.op_cnt = op_cnt;
+    }
+  }
+
+  public static class AckTimeout implements Serializable {
+    public final int seqno;
+
+    public AckTimeout(final int seqno) {
       this.seqno = seqno;
     }
   }
@@ -370,26 +407,83 @@ public class Replica extends AbstractActor {
   /*-- Actor message handlers ---------------------------------------------------------- */
 
   private void onRdRqMsg(RdRqMsg msg) {
-    logger.info("Replica {} received read request from client {}", Functions.getId(getSelf()), Functions.getId(getSender()));
+    logger.info("Replica {} received read request from client {}", Functions.getId(getSelf()),
+        Functions.getId(getSender()));
     getSender().tell(new RdRspMsg(value), getSelf());
   }
 
   private void onWrRqMsg(WrRqMsg msg) {
-    logger.info("Replica {} received write request from client {} with value {}", Functions.getId(getSelf()), Functions.getId(getSender()),
+    logger.info("Replica {} received write request from client {} with value {}", Functions.getId(getSelf()),
+        Functions.getId(getSender()),
         msg.new_value);
     coordinator.tell(msg, getSelf());
+
+    Functions.setTimeout(getContext(), UPD_TIMEOUT, getSelf(), new UpdTimeout(msg.c_snd, msg.op_cnt));
   }
 
-  private void onUpRqMsg(UpRqMsg msg) {
-    logger.info("Replica {} received UPDATE message from coordinator with value {} with seqno {}", Functions.getId(getSelf()), msg.value, msg.seqno);
+  private void onUpdRqMsg(UpdRqMsg msg) {
+    logger.info("Replica {} received UPDATE message from coordinator with value {} with seqno {}",
+        Functions.getId(getSelf()), msg.value, msg.seqno);
     seqnoValue.put(msg.seqno, msg.value);
 
+    Map m = Map.of(msg.sender, msg.op_cnt);
+    membersUpdRcvd.put(m, true);
+
     coordinator.tell(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf());
+
+    Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(), new AckTimeout(msg.seqno));
   }
 
   private void onAckMsg(AckMsg msg) {
-    logger.info("Replica {} changed the value from {} to {} with seqno {}", Functions.getId(getSelf()), value, seqnoValue.get(msg.seqno), msg.seqno);
+    logger.info("Replica {} changed the value from {} to {} with seqno {}", Functions.getId(getSelf()), value,
+        seqnoValue.get(msg.seqno), msg.seqno);
     value = seqnoValue.get(msg.seqno);
+
+    AckRcvd.put(msg.seqno, true);
+  }
+
+  public void onUpdTimeout(UpdTimeout msg) {
+    logger.debug("Replica {} reached it's update timeout", Functions.getId(getSelf()));
+
+    Map m = Map.of(msg.c_snd, msg.op_cnt);
+    if (!membersUpdRcvd.getOrDefault(m, false)) {
+      logger.error("Replica {} did not receive update in time. Coordinator might have crashed.",
+          Functions.getId(getSelf()));
+      // TODO: Implement coordinator crash recovery
+    }
+  }
+
+  public void onAckTimeout(AckTimeout msg) {
+    logger.debug("Replica {} reached it's write_ok timeout", Functions.getId(getSelf()));
+
+    if (!membersUpdRcvd.getOrDefault(msg.seqno, false)) {
+      logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.",
+          Functions.getId(getSelf()));
+      // TODO: Implement coordinator crash recovery
+    }
+  }
+
+  public void onHeartbeatMsg(HeartbeatMsg msg) {
+    if (!firstHeartbeatReceived) {
+      firstHeartbeatReceived = true;
+      Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatPeriod());
+    }
+
+    logger.debug("Replica {} received a heartbeat message from the coordinator", Functions.getId(getSelf()));
+    heartbeatReceived = true;
+
+    coordinator.tell(new HeartbeatMsg(), getSelf());
+  }
+
+  private void onHeartbeatPeriod(HeartbeatPeriod msg) {
+    logger.debug("Replica {} reached it's heartbeat timeout", Functions.getId(getSelf()));
+
+    if (!heartbeatReceived) {
+      logger.error("Replica {} did not heartbeat in time. Coordinator might have crashed.", Functions.getId(getSelf()));
+      // TODO: Implement coordinator crash recovery
+    }
+    heartbeatReceived = false;
+    Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatPeriod());
   }
 
   private void onJoinGroupMsg(JoinGroupMsg msg) {
@@ -610,17 +704,17 @@ public class Replica extends AbstractActor {
   }
 
   private void onCrashMsg(CrashMsg msg) {
-
+    crash();
     // in most cases, RecoveryMsg will arrive after CrashMsg;
     // when that is not the case, prevent the crash
-    if (!willRecover) {
-      nextCrash = msg.nextCrash;
-      nextCrashAfter = msg.nextCrashAfter;
-      flushes.clear();
-      proposedView.clear();
-      deferredMsgSet.clear();
-    }
-    willRecover = false;
+    //if (!willRecover) {
+    //  nextCrash = msg.nextCrash;
+    //  nextCrashAfter = msg.nextCrashAfter;
+    //  flushes.clear();
+    //  proposedView.clear();
+    //  deferredMsgSet.clear();
+    //}
+    //willRecover = false;
   }
 
   private void onRecoveryMsg(RecoveryMsg msg) {
@@ -662,7 +756,11 @@ public class Replica extends AbstractActor {
         .match(JoinGroupMsg.class, this::onJoinGroupMsg)
         .match(RdRqMsg.class, this::onRdRqMsg)
         .match(WrRqMsg.class, this::onWrRqMsg)
-        .match(UpRqMsg.class, this::onUpRqMsg)
+        .match(UpdRqMsg.class, this::onUpdRqMsg)
+        .match(UpdTimeout.class, this::onUpdTimeout)
+        .match(AckTimeout.class, this::onAckTimeout)
+        .match(HeartbeatMsg.class, this::onHeartbeatMsg)
+        .match(HeartbeatPeriod.class, this::onHeartbeatPeriod)
         .match(SendChatMsg.class, this::onSendChatMsg)
         .match(ChatMsg.class, this::onChatMsg)
         .match(AckMsg.class, this::onAckMsg)
