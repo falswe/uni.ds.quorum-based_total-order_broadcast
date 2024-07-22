@@ -426,7 +426,7 @@ public class Replica extends AbstractActor {
   protected void onAckTimeout(AckTimeout msg) {
     logger.debug("{} reached it's write_ok timeout", Functions.getName(getSelf()));
 
-    if (!membersUpdRcvd.getOrDefault(msg.seqno, false)) {
+    if (!AckRcvd.getOrDefault(msg.seqno, false)) {
       logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.",
           Functions.getId(getSelf()));
       // TODO: Implement coordinator crash recovery
