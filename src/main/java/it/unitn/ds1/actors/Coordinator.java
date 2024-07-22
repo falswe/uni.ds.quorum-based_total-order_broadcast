@@ -1,15 +1,9 @@
 package it.unitn.ds1.actors;
 
 import akka.actor.*;
+import it.unitn.ds1.actors.Client.RdRqMsg;
 import it.unitn.ds1.actors.Client.WrRqMsg;
-import it.unitn.ds1.actors.Replica.AckMsg;
-import it.unitn.ds1.actors.Replica.UpdRqMsg;
-import it.unitn.ds1.actors.Replica.JoinGroupMsg;
-import it.unitn.ds1.actors.Replica.ViewChangeMsg;
 import it.unitn.ds1.utils.Functions;
-import it.unitn.ds1.utils.Messages.AreYouStillAlive;
-import it.unitn.ds1.utils.Messages.BroadcastTimeout;
-import it.unitn.ds1.utils.Messages.ConfirmationTimeout;
 
 import java.io.Serializable;
 import java.util.*;
@@ -17,7 +11,7 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Coordinator extends AbstractActor {
+public class Coordinator extends Replica {
   // needed for our logging framework
   private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
@@ -26,8 +20,7 @@ public class Coordinator extends AbstractActor {
   private final static int HEARTBEAT_TIMEOUT = 1000;
 
   // participants (initial group, current and proposed views)
-  private List<ActorRef> replicas;
-  private List<ActorRef> replicasAlive;
+  private Set<ActorRef> replicasAlive;
   private final Set<ActorRef> view;
   private int viewId;
 
@@ -39,8 +32,9 @@ public class Coordinator extends AbstractActor {
 
   /*-- Actor constructors --------------------------------------------------- */
   public Coordinator() {
-    replicas = new ArrayList<>();
-    replicasAlive = new ArrayList<>();
+    super(null);
+    coordinator = getSelf();
+    replicasAlive = new HashSet<>();
     view = new HashSet<>(replicas);
     seqnoAckCounter = new HashMap<>();
     viewId = 0;
@@ -54,10 +48,16 @@ public class Coordinator extends AbstractActor {
 
   /*-- Message classes ------------------------------------------------------ */
 
-  public static class HeartbeatPeriod implements Serializable {
+  public static class CoordinatorHeartbeatPeriod implements Serializable {
   }
 
   public static class HeartbeatTimeout implements Serializable {
+  }
+
+  public static class CoordinatorHeartbeatMsg implements Serializable {
+  }
+
+  public static class HeartbeatPeriod implements Serializable {
   }
 
   public static class HeartbeatMsg implements Serializable {
@@ -74,23 +74,35 @@ public class Coordinator extends AbstractActor {
   public static class JoinNodeMsg implements Serializable {
   }
 
+  public static class WrOk implements Serializable {
+    public final int epoch;
+    public final ActorRef sender;
+    public final int seqno;
+
+    public WrOk(int epoch, int seqno, ActorRef sender) {
+      this.epoch = epoch;
+      this.sender = sender;
+      this.seqno = seqno;
+    }
+  }
+
   /*-- Actor logic ---------------------------------------------------------- */
 
   @Override
   public void preStart() {
-    Functions.setTimeout(getContext(), HEARTBEAT_PERIOD, getSelf(), new HeartbeatPeriod());
+    Functions.setTimeout(getContext(), HEARTBEAT_PERIOD, getSelf(), new CoordinatorHeartbeatPeriod());
   }
 
-  public void onHeartbeatPeriod(HeartbeatPeriod msg) {
+  public void onCoordinatorHeartbeatPeriod(CoordinatorHeartbeatPeriod msg) {
     logger.debug("Coordinator sent out a heartbeat message to all replicas");
-    Functions.setTimeout(getContext(), HEARTBEAT_PERIOD, getSelf(), new HeartbeatPeriod());
-    HeartbeatMsg confAlive = new HeartbeatMsg();
+    Functions.setTimeout(getContext(), HEARTBEAT_PERIOD, getSelf(), new CoordinatorHeartbeatPeriod());
+    CoordinatorHeartbeatMsg confAlive = new CoordinatorHeartbeatMsg();
     Functions.multicast(confAlive, replicas, getSelf());
     Functions.setTimeout(getContext(), HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatTimeout());
   }
 
   public void onHeartbeatMsg(HeartbeatMsg msg) {
-    logger.debug("Coordinator got a hearbeat message from replica {}", Functions.getId(getSender()));
+    logger.debug("Coordinator got a heartbeat message from {}", Functions.getName(getSender()));
     replicasAlive.add(getSender());
   }
 
@@ -120,15 +132,15 @@ public class Coordinator extends AbstractActor {
   }
 
   private void onWrRqMsg(WrRqMsg msg) {
-    logger.info("Coordinator received write request from replica {} with value {}", Functions.getId(getSender()),
+    logger.info("Coordinator received write request from {} with value {}", Functions.getName(getSender()),
         msg.new_value);
     Functions.multicast(new UpdRqMsg(msg.c_snd, epoch, ++seqno, msg.op_cnt, msg.new_value), replicas, getSelf());
   }
 
   private void onAck(AckMsg msg) {
     seqnoAckCounter.put(msg.seqno, seqnoAckCounter.getOrDefault(msg.seqno, 0) + 1);
-    logger.info("Coordinator received {} ack(s) from replica {} with seqno {}", seqnoAckCounter.get(msg.seqno),
-        Functions.getId(getSender()), msg.seqno);
+    logger.info("Coordinator received {} ack(s) from {} with seqno {}", seqnoAckCounter.get(msg.seqno),
+        Functions.getName(getSender()), msg.seqno);
     int Q = (replicas.size() / 2) + 1;
 
     if (seqnoAckCounter.get(msg.seqno) == Q) {
@@ -174,18 +186,35 @@ public class Coordinator extends AbstractActor {
     }
   }
 
+  private void onCrashMsg(CrashMsg msg) {
+    if (msg.nextCrash == CrashType.NotResponding) {
+      crash();
+    } else {
+      nextCrash = msg.nextCrash;
+    }
+  }
+
   // Here we define the mapping between the received message types
   // and our actor methods
   @Override
   public Receive createReceive() {
     return receiveBuilder()
         .match(JoinGroupMsg.class, this::onJoinGroupMsg)
+        .match(RdRqMsg.class, this::onRdRqMsg)
         .match(WrRqMsg.class, this::onWrRqMsg)
+        .match(UpdRqMsg.class, this::onUpdRqMsg)
+        .match(UpdTimeout.class, this::onUpdTimeout)
+        .match(AckTimeout.class, this::onAckTimeout)
+        .match(HeartbeatMsg.class, this::onHeartbeatMsg)
+        .match(CoordinatorHeartbeatPeriod.class, this::onCoordinatorHeartbeatPeriod)
+        .match(CoordinatorHeartbeatMsg.class, this::onCoordinatorHeartbeatMsg)
+        .match(WrOk.class, this::onWrOk)
         .match(AckMsg.class, this::onAck)
         .match(HeartbeatPeriod.class, this::onHeartbeatPeriod)
         .match(HeartbeatTimeout.class, this::onHeartbeatTimeout)
         .match(HeartbeatMsg.class, this::onHeartbeatMsg)
         .match(JoinNodeMsg.class, this::onJoinNodeMsg)
+        .match(CrashMsg.class, this::onCrashMsg)
         .match(CrashReportMsg.class, this::onCrashReportMsg)
         .build();
   }

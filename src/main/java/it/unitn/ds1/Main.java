@@ -47,7 +47,7 @@ public class Main {
       // Send start message to coordinator and clients
       StartMessage start = new StartMessage(replicas);
       coordinator.tell(start, ActorRef.noSender());
-      Functions.multicast(start, clients, ActorRef.noSender());
+      // Functions.multicast(start, clients, ActorRef.noSender());
 
       // Wait for user input to terminate
       logger.info(">>> Press ENTER to exit <<<");

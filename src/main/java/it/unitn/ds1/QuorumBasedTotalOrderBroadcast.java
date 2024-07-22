@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 
 public class QuorumBasedTotalOrderBroadcast {
-  final static int N_REPLICAS = 2;
+  final static int N_REPLICAS = 1;
   final static int N_CLIENTS = 1;
 
   public static void main(String[] args) {
@@ -22,13 +22,15 @@ public class QuorumBasedTotalOrderBroadcast {
     // Create the actor system
     final ActorSystem system = ActorSystem.create("QBTOBSystem");
 
-    // Create a coordinator of the system
-    ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
-
     // Create nodes and put them to a list
     List<ActorRef> replicas = new ArrayList<>();
+
+    // Create a coordinator of the system
+    ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+    replicas.add(coordinator);
+
     for (int i = 0; i < N_REPLICAS; i++) {
-      replicas.add(system.actorOf(Replica.props(coordinator, false), "replica" + i));
+      replicas.add(system.actorOf(Replica.props(coordinator), "replica" + i));
     }
 
     // Create nodes and put them to a list

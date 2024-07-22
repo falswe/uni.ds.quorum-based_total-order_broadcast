@@ -58,7 +58,7 @@ public class LegacyCoordinator extends LegacyReplica {
 
       UpdateRequest update = new UpdateRequest(msg.new_value);
 
-      Functions.multicast(update, replicas, getSelf());
+      //Functions.multicast(update, replicas, getSelf());
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during write request", e);
     }
@@ -70,7 +70,7 @@ public class LegacyCoordinator extends LegacyReplica {
       logger.info("Coordinator received Ack from Replica {}", msg.sender_id);
       if (enoughAckReceived()) {
         WriteOk write = new WriteOk();
-        Functions.multicast(write, replicas, getSelf());
+        //Functions.multicast(write, replicas, getSelf());
       }
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during acknowledgment handling", e);
@@ -82,7 +82,7 @@ public class LegacyCoordinator extends LegacyReplica {
       logger.debug("Coordinator sent out a broadcast message to all replicas");
       Functions.setTimeout(getContext(), BROADCAST_TIMEOUT, getSelf(), new BroadcastTimeout());
       AreYouStillAlive confAlive = new AreYouStillAlive();
-      Functions.multicast(confAlive, replicas, getSelf());
+      //Functions.multicast(confAlive, replicas, getSelf());
       Functions.setTimeout(getContext(), CONFIRMATION_TIMEOUT, getSelf(), new ConfirmationTimeout());
     } catch (Exception e) {
       logger.error("Coordinator encountered an error during broadcast timeout handling", e);

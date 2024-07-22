@@ -108,7 +108,7 @@ public class Client extends AbstractActor {
     // schedule Write Request
     int rand_replica = rnd.nextInt(replicas.size());
     int new_value = rnd.nextInt(100);
-    logger.info("Client {} send write request to replica {} with value {}", Functions.getId(getSelf()), rand_replica,
+    logger.info("Client {} send write request to {} with value {}", Functions.getId(getSelf()), Functions.getName(replicas.get(rand_replica)),
         new_value);
 
     getContext().system().scheduler().scheduleOnce(

@@ -29,7 +29,7 @@ public class Functions {
         context.system().dispatcher(), actor);
   }
 
-  public static void multicast(Serializable m, List<ActorRef> receivers, ActorRef sender) {
+  public static void multicast(Serializable m, Set<ActorRef> receivers, ActorRef sender) {
     for (ActorRef r : receivers) {
       r.tell(m, sender);
     }

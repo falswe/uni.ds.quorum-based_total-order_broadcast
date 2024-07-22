@@ -12,10 +12,11 @@ import org.slf4j.LoggerFactory;
 
 import it.unitn.ds1.actors.Client.RdRqMsg;
 import it.unitn.ds1.actors.Client.WrRqMsg;
-import it.unitn.ds1.actors.Coordinator.JoinNodeMsg;
+import it.unitn.ds1.actors.Coordinator.CoordinatorHeartbeatMsg;
 import it.unitn.ds1.actors.Coordinator.CrashReportMsg;
 import it.unitn.ds1.actors.Coordinator.HeartbeatMsg;
 import it.unitn.ds1.actors.Coordinator.HeartbeatPeriod;
+import it.unitn.ds1.actors.Coordinator.WrOk;
 import it.unitn.ds1.utils.Functions;
 
 public class Replica extends AbstractActor {
@@ -37,20 +38,17 @@ public class Replica extends AbstractActor {
   private final Map<Integer, Boolean> AckRcvd;
 
   // holding the actual current value of the replica
-  private int value = 5;
+  protected int value = 5;
 
   // message sequence number for identification
   private int epoch;
   private int seqno;
 
   // group manager
-  private final ActorRef coordinator;
-
-  // whether the node should join through the manager
-  private boolean joining;
+  protected ActorRef coordinator;
 
   // participants (initial group, current and proposed views)
-  private final Set<ActorRef> replicas;
+  protected final Set<ActorRef> replicas;
   private final Set<ActorRef> currentView;
   private final Map<Integer, Set<ActorRef>> proposedView;
 
@@ -90,14 +88,10 @@ public class Replica extends AbstractActor {
   // number of transmissions before crashing
   private int nextCrashAfter;
 
-  // prepare to recover (to handle RecoveryMsg received before crashing)
-  private boolean willRecover;
-
   /*-- Actor constructors --------------------------------------------------- */
-  public Replica(ActorRef coordinator, boolean joining) {
+  public Replica(ActorRef coordinator) {
     this.coordinator = coordinator;
     this.seqno = 0;
-    this.joining = joining;
     this.epoch = 0;
     this.replicas = new HashSet<>();
     this.currentView = new HashSet<>();
@@ -112,11 +106,10 @@ public class Replica extends AbstractActor {
     this.rnd = new Random();
     this.nextCrash = CrashType.NONE;
     this.nextCrashAfter = 0;
-    this.willRecover = false;
   }
 
-  static public Props props(ActorRef manager, boolean joining) {
-    return Props.create(Replica.class, () -> new Replica(manager, joining));
+  static public Props props(ActorRef coordinator) {
+    return Props.create(Replica.class, () -> new Replica(coordinator));
   }
 
   /*-- Message classes ------------------------------------------------------ */
@@ -263,20 +256,6 @@ public class Replica extends AbstractActor {
   @Override
   public void preStart() {
 
-    // joining nodes contact the manager
-    if (joining) {
-      // System.out.println(getSelf().path().name() + " joining through manager");
-      coordinator.tell(new JoinNodeMsg(), getSelf());
-    }
-
-    // // schedule first ChatMsg
-    // getContext().system().scheduler().scheduleOnce(
-    // Duration.create(2, TimeUnit.SECONDS), // when to send the message
-    // getSelf(), // destination actor reference
-    // new SendChatMsg(), // the message to send
-    // getContext().system().dispatcher(), // system dispatcher
-    // getSelf() // source of the message (myself)
-    // );
   }
 
   /*-- Helper methods ---------------------------------------------------------- */
@@ -347,16 +326,6 @@ public class Replica extends AbstractActor {
 
   private void deferredDeliver(int prevViewId, int nextViewId) {
 
-    // a joining node delivers only those messages related to the first view
-    if (joining) {
-      for (ChatMsg m : deferredMsgSet) {
-        if (m.viewId == nextViewId) {
-          deliver(m, true);
-        }
-      }
-      return;
-    }
-
     // due to multiple crashes, some views may not have been installed;
     // make sure you deliver all pending messages between views
     for (int i = prevViewId; i <= nextViewId; i++) {
@@ -397,15 +366,12 @@ public class Replica extends AbstractActor {
     System.out.println(
         getSelf().path().name() + " installs view " + this.epoch + " " + currentView
             + " with updated proposedView " + proposedView);
-
-    // a joining node is a full member now
-    joining = false;
   }
 
   /*-- Actor message handlers ---------------------------------------------------------- */
 
-  private void onRdRqMsg(RdRqMsg msg) {
-    logger.info("Replica {} received read request from client {}", Functions.getId(getSelf()),
+  protected void onRdRqMsg(RdRqMsg msg) {
+    logger.info("{} received read request from client {}", Functions.getName(getSelf()),
         Functions.getId(getSender()));
     getSender().tell(new RdRspMsg(value), getSelf());
   }
@@ -419,12 +385,12 @@ public class Replica extends AbstractActor {
     Functions.setTimeout(getContext(), UPD_TIMEOUT, getSelf(), new UpdTimeout(msg.c_snd, msg.op_cnt));
   }
 
-  private void onUpdRqMsg(UpdRqMsg msg) {
-    logger.info("Replica {} received UPDATE message from coordinator with value {} with seqno {}",
-        Functions.getId(getSelf()), msg.value, msg.seqno);
+  protected void onUpdRqMsg(UpdRqMsg msg) {
     if (nextCrash == CrashType.WhileSendingUpdate)
       crash();
 
+    logger.info("{} received UPDATE message from coordinator with value {} with seqno {}",
+        Functions.getName(getSelf()), msg.value, msg.seqno);
     seqnoValue.put(msg.seqno, msg.value);
 
     Map m = Map.of(msg.sender, msg.op_cnt);
@@ -435,7 +401,7 @@ public class Replica extends AbstractActor {
     Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(), new AckTimeout(msg.seqno));
   }
 
-  private void onAckMsg(AckMsg msg) {
+  protected void onWrOk(WrOk msg) {
     if (nextCrash == CrashType.WhileSendingWriteOk)
       crash();
 
@@ -446,8 +412,8 @@ public class Replica extends AbstractActor {
     AckRcvd.put(msg.seqno, true);
   }
 
-  public void onUpdTimeout(UpdTimeout msg) {
-    logger.debug("Replica {} reached it's update timeout", Functions.getId(getSelf()));
+  protected void onUpdTimeout(UpdTimeout msg) {
+    logger.debug("{} reached it's update timeout", Functions.getName(getSelf()));
 
     Map m = Map.of(msg.c_snd, msg.op_cnt);
     if (!membersUpdRcvd.getOrDefault(m, false)) {
@@ -457,8 +423,8 @@ public class Replica extends AbstractActor {
     }
   }
 
-  public void onAckTimeout(AckTimeout msg) {
-    logger.debug("Replica {} reached it's write_ok timeout", Functions.getId(getSelf()));
+  protected void onAckTimeout(AckTimeout msg) {
+    logger.debug("{} reached it's write_ok timeout", Functions.getName(getSelf()));
 
     if (!membersUpdRcvd.getOrDefault(msg.seqno, false)) {
       logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.",
@@ -467,23 +433,23 @@ public class Replica extends AbstractActor {
     }
   }
 
-  public void onHeartbeatMsg(HeartbeatMsg msg) {
+  protected void onCoordinatorHeartbeatMsg(CoordinatorHeartbeatMsg msg) {
     if (!firstHeartbeatReceived) {
       firstHeartbeatReceived = true;
       Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatPeriod());
     }
 
-    logger.debug("Replica {} received a heartbeat message from the coordinator", Functions.getId(getSelf()));
+    logger.debug("{} received a heartbeat message from the coordinator", Functions.getName(getSelf()));
     heartbeatReceived = true;
 
     coordinator.tell(new HeartbeatMsg(), getSelf());
   }
 
-  private void onHeartbeatPeriod(HeartbeatPeriod msg) {
-    logger.debug("Replica {} reached it's heartbeat timeout", Functions.getId(getSelf()));
+  protected void onHeartbeatPeriod(HeartbeatPeriod msg) {
+    logger.debug("{} reached it's heartbeat timeout", Functions.getName(getSelf()));
 
     if (!heartbeatReceived) {
-      logger.error("Replica {} did not heartbeat in time. Coordinator might have crashed.", Functions.getId(getSelf()));
+      logger.error("{} did not heartbeat in time. Coordinator might have crashed.", Functions.getName(getSelf()));
       // TODO: Implement coordinator crash recovery
     }
     heartbeatReceived = false;
@@ -510,8 +476,8 @@ public class Replica extends AbstractActor {
         getSelf() // source of the message (myself)
     );
 
-    // avoid transmitting while joining and during view changes
-    if (joining || isViewChanging())
+    // avoid transmitting during view changes
+    if (isViewChanging())
       return;
 
     // prepare chat message and add it to the unstable set
@@ -548,18 +514,6 @@ public class Replica extends AbstractActor {
   }
 
   private void onChatMsg(ChatMsg msg) {
-
-    // joining nodes ignore incoming messages,
-    // unless those that may belong to the first view that will be installed
-    // eventually
-    if (joining) {
-      if (isViewChanging() && !getSelf().equals(msg.sender)) {
-        System.out.println(
-            getSelf().path().name() + " deferred (joining) " + msg.seqno + " from " + msg.sender.path().name());
-        deferredMsgSet.add(msg);
-      }
-      return;
-    }
 
     // ignore own messages (may have been sent during flush protocol)
     if (getSelf().equals(msg.sender))
@@ -715,35 +669,13 @@ public class Replica extends AbstractActor {
     }
   }
 
-  private void onRecoveryMsg(RecoveryMsg msg) {
-    recover();
-  }
-
   private void onRecoveryMsgBeforeCrash(RecoveryMsg msg) {
     System.out.println(getSelf().path().name() + " will recover immediately");
-    willRecover = true;
   }
 
-  private void crash() {
+  protected void crash() {
+    logger.error("{} crashed", Functions.getName(getSelf()));
     getContext().become(crashed());
-  }
-
-  private void recover() {
-    joining = true;
-    nextCrash = CrashType.NONE;
-    nextCrashAfter = 0;
-    willRecover = false;
-    getContext().become(createReceive());
-    coordinator.tell(new JoinNodeMsg(), getSelf());
-
-    // schedule first ChatMsg
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(2, TimeUnit.SECONDS), // when to send the message
-        getSelf(), // destination actor reference
-        new SendChatMsg(), // the message to send
-        getContext().system().dispatcher(), // system dispatcher
-        getSelf() // source of the message (myself)
-    );
   }
 
   // Here we define the mapping between the received message types
@@ -757,11 +689,11 @@ public class Replica extends AbstractActor {
         .match(UpdRqMsg.class, this::onUpdRqMsg)
         .match(UpdTimeout.class, this::onUpdTimeout)
         .match(AckTimeout.class, this::onAckTimeout)
-        .match(HeartbeatMsg.class, this::onHeartbeatMsg)
+        .match(CoordinatorHeartbeatMsg.class, this::onCoordinatorHeartbeatMsg)
         .match(HeartbeatPeriod.class, this::onHeartbeatPeriod)
         .match(SendChatMsg.class, this::onSendChatMsg)
         .match(ChatMsg.class, this::onChatMsg)
-        .match(AckMsg.class, this::onAckMsg)
+        .match(WrOk.class, this::onWrOk)
         .match(StableChatMsg.class, this::onStableChatMsg)
         .match(StableTimeoutMsg.class, this::onStableTimeoutMsg)
         .match(ViewChangeMsg.class, this::onViewChangeMsg)
@@ -776,7 +708,6 @@ public class Replica extends AbstractActor {
 
   final AbstractActor.Receive crashed() {
     return receiveBuilder()
-        .match(RecoveryMsg.class, this::onRecoveryMsg)
         .match(ChatMsg.class, this::onCrashedChatMsg)
         .matchAny(msg -> {
         })
