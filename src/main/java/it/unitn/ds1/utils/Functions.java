@@ -29,7 +29,7 @@ public class Functions {
         context.system().dispatcher(), actor);
   }
 
-  public static void multicast(Serializable m, Set<ActorRef> receivers, ActorRef sender) {
+  public static void multicast(Serializable m, List<ActorRef> receivers, ActorRef sender) {
     for (ActorRef r : receivers) {
       r.tell(m, sender);
     }
@@ -37,17 +37,17 @@ public class Functions {
 
   // Extracts the ID out of a string like
   // Actor[akka://Quorum-based-Total-Order-Broadcast/user/client0#-293215613]
-  public static String getId(ActorRef actor) {
+  public static int getId(ActorRef actor) {
     Pattern regex = Pattern.compile("(client|replica)(\\d+)");
     Matcher matcher = regex.matcher(actor.toString());
     if (matcher.find()) {
-      return matcher.group(2);
+      return Integer.parseInt(matcher.group(2));
     }
-    return null;
+    return -1;
   }
 
   public static String getName(ActorRef actor) {
-    Pattern regex = Pattern.compile("(client|replica|coordinator)(\\d*)");
+    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
     Matcher matcher = regex.matcher(actor.toString());
     if (matcher.find()) {
       return matcher.group(1) + " " + matcher.group(2);

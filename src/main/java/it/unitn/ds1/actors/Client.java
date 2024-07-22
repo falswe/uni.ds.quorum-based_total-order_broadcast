@@ -10,8 +10,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import it.unitn.ds1.actors.Replica.JoinGroupMsg;
-import it.unitn.ds1.actors.Replica.RdRspMsg;
+import it.unitn.ds1.utils.Messages.*;
 
 import it.unitn.ds1.utils.Functions;
 
@@ -61,13 +60,15 @@ public class Client extends AbstractActor {
   public void preStart() {
 
     // schedule Read Request
-    /*getContext().system().scheduler().scheduleOnce(
-        Duration.create(2, TimeUnit.SECONDS), // when to send the message
-        replicas.get(0), // destination actor reference
-        new RdRqMsg(), // the message to send
-        getContext().system().dispatcher(), // system dispatcher
-        getSelf() // source of the message (myself)
-    );*/
+    /*
+     * getContext().system().scheduler().scheduleOnce(
+     * Duration.create(2, TimeUnit.SECONDS), // when to send the message
+     * replicas.get(0), // destination actor reference
+     * new RdRqMsg(), // the message to send
+     * getContext().system().dispatcher(), // system dispatcher
+     * getSelf() // source of the message (myself)
+     * );
+     */
 
   }
 
@@ -108,7 +109,8 @@ public class Client extends AbstractActor {
     // schedule Write Request
     int rand_replica = rnd.nextInt(replicas.size());
     int new_value = rnd.nextInt(100);
-    logger.info("Client {} send write request to {} with value {}", Functions.getId(getSelf()), Functions.getName(replicas.get(rand_replica)),
+    logger.info("Client {} send write request to {} with value {}", Functions.getId(getSelf()),
+        Functions.getName(replicas.get(rand_replica)),
         new_value);
 
     getContext().system().scheduler().scheduleOnce(

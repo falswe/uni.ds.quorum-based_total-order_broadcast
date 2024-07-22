@@ -3,10 +3,8 @@ package it.unitn.ds1;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.actors.Client;
-import it.unitn.ds1.actors.Coordinator;
 import it.unitn.ds1.actors.Replica;
-import it.unitn.ds1.actors.Replica.JoinGroupMsg;
-import it.unitn.ds1.actors.Replica.CrashMsg;
+import it.unitn.ds1.utils.Messages.*;
 import it.unitn.ds1.actors.Replica.CrashType;
 
 import java.util.List;
@@ -14,7 +12,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 
 public class QuorumBasedTotalOrderBroadcast {
-  final static int N_REPLICAS = 1;
+  final static int N_REPLICAS = 4;
   final static int N_CLIENTS = 1;
 
   public static void main(String[] args) {
@@ -26,10 +24,10 @@ public class QuorumBasedTotalOrderBroadcast {
     List<ActorRef> replicas = new ArrayList<>();
 
     // Create a coordinator of the system
-    ActorRef coordinator = system.actorOf(Coordinator.props(), "coordinator");
+    ActorRef coordinator = system.actorOf(Replica.props(), "replica" + 0);
     replicas.add(coordinator);
 
-    for (int i = 0; i < N_REPLICAS; i++) {
+    for (int i = 1; i < N_REPLICAS; i++) {
       replicas.add(system.actorOf(Replica.props(coordinator), "replica" + i));
     }
 
@@ -42,7 +40,6 @@ public class QuorumBasedTotalOrderBroadcast {
     // Send join messages to the manager and the nodes to inform them of the whole
     // group
     JoinGroupMsg start = new JoinGroupMsg(replicas);
-    coordinator.tell(start, ActorRef.noSender());
     for (ActorRef client : clients) {
       client.tell(start, ActorRef.noSender());
     }
@@ -52,7 +49,7 @@ public class QuorumBasedTotalOrderBroadcast {
 
     inputContinue();
 
-    replicas.get(1).tell(new CrashMsg(CrashType.NotResponding, 2), ActorRef.noSender());
+    replicas.get(0).tell(new CrashMsg(CrashType.NotResponding, 2), ActorRef.noSender());
 
     inputContinue();
 
