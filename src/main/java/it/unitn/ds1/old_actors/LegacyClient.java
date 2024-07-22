@@ -1,7 +1,7 @@
 package it.unitn.ds1.old_actors;
 
 import akka.actor.*;
-import it.unitn.ds1.utils.Messages.*;
+import it.unitn.ds1.utils.LegacyMessages.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

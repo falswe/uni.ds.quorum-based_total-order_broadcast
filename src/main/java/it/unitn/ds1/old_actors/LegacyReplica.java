@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import it.unitn.ds1.utils.Functions;
-import it.unitn.ds1.utils.Messages.*;
+import it.unitn.ds1.utils.LegacyMessages.*;
 
 /**
  * The Replica class represents a replica in the distributed system.

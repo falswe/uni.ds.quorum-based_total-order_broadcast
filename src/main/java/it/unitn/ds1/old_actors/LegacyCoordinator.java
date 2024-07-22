@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import it.unitn.ds1.utils.Functions;
-import it.unitn.ds1.utils.Messages.*;
+import it.unitn.ds1.utils.LegacyMessages.*;
 
 import java.util.List;
 import java.util.ArrayList;

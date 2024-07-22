@@ -13,7 +13,7 @@ import it.unitn.ds1.old_actors.LegacyClient;
 import it.unitn.ds1.old_actors.LegacyCoordinator;
 import it.unitn.ds1.old_actors.LegacyReplica;
 import it.unitn.ds1.utils.Functions;
-import it.unitn.ds1.utils.Messages.StartMessage;
+import it.unitn.ds1.utils.LegacyMessages.StartMessage;
 
 /**
  * The Main class is the entry point for the distributed system simulation.
