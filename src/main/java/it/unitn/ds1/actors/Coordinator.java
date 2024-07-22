@@ -121,9 +121,7 @@ public class Coordinator extends Replica {
 
     // initialize group
     for (ActorRef r : msg.group) {
-      if (!r.equals(getSelf())) {
-        this.replicas.add(r);
-      }
+      this.replicas.add(r);
     }
 
     // at the beginning, the view includes all nodes in the group
