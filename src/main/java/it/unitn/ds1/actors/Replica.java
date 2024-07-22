@@ -75,12 +75,17 @@ public class Replica extends AbstractActor {
   // type of the next simulated crash
   public enum CrashType {
     NONE,
+    NotResponding, // the replica crashes, and does not respond
+    WhileSendingUpdate,
+    AfterReceivingUpdate,
+    WhileSendingWriteOk,
+    WhileElection,
     ChatMsg,
     StableChatMsg,
     ViewFlushMsg
   }
 
-  private CrashType nextCrash;
+  protected CrashType nextCrash;
 
   // number of transmissions before crashing
   private int nextCrashAfter;
@@ -280,13 +285,6 @@ public class Replica extends AbstractActor {
     int i = 0;
     for (ActorRef r : multicastGroup) {
 
-      // check if the node should crash
-      if (m.getClass().getSimpleName().equals(nextCrash.name())) {
-        if (i >= nextCrashAfter) {
-          break;
-        }
-      }
-
       // send m to r (except to self)
       if (!r.equals(getSelf())) {
 
@@ -424,6 +422,9 @@ public class Replica extends AbstractActor {
   private void onUpdRqMsg(UpdRqMsg msg) {
     logger.info("Replica {} received UPDATE message from coordinator with value {} with seqno {}",
         Functions.getId(getSelf()), msg.value, msg.seqno);
+    if (nextCrash == CrashType.WhileSendingUpdate)
+      crash();
+
     seqnoValue.put(msg.seqno, msg.value);
 
     Map m = Map.of(msg.sender, msg.op_cnt);
@@ -435,7 +436,10 @@ public class Replica extends AbstractActor {
   }
 
   private void onAckMsg(AckMsg msg) {
-    logger.info("Replica {} changed the value from {} to {} with seqno {}", Functions.getId(getSelf()), value,
+    if (nextCrash == CrashType.WhileSendingWriteOk)
+      crash();
+
+    logger.info("{} changed the value from {} to {} with seqno {}", Functions.getName(getSelf()), value,
         seqnoValue.get(msg.seqno), msg.seqno);
     value = seqnoValue.get(msg.seqno);
 
@@ -704,17 +708,11 @@ public class Replica extends AbstractActor {
   }
 
   private void onCrashMsg(CrashMsg msg) {
-    crash();
-    // in most cases, RecoveryMsg will arrive after CrashMsg;
-    // when that is not the case, prevent the crash
-    //if (!willRecover) {
-    //  nextCrash = msg.nextCrash;
-    //  nextCrashAfter = msg.nextCrashAfter;
-    //  flushes.clear();
-    //  proposedView.clear();
-    //  deferredMsgSet.clear();
-    //}
-    //willRecover = false;
+    if (msg.nextCrash == CrashType.NotResponding) {
+      crash();
+    } else {
+      nextCrash = msg.nextCrash;
+    }
   }
 
   private void onRecoveryMsg(RecoveryMsg msg) {

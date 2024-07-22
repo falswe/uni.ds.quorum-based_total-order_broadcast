@@ -2,6 +2,7 @@ package it.unitn.ds1.utils;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
+import java.util.Set;
 
 import akka.actor.*;
 import scala.concurrent.duration.Duration;
@@ -45,8 +46,8 @@ public class Functions {
     return null;
   }
 
-  public static String getShortForm(ActorRef actor) {
-    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
+  public static String getName(ActorRef actor) {
+    Pattern regex = Pattern.compile("(client|replica|coordinator)(\\d*)");
     Matcher matcher = regex.matcher(actor.toString());
     if (matcher.find()) {
       return matcher.group(1) + " " + matcher.group(2);
