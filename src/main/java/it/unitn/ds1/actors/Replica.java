@@ -35,8 +35,8 @@ public class Replica extends AbstractActor {
   private final static int COORDINATOR_HEARTBEAT_TIMEOUT = 1000;
 
   // used to start the hearbeat period timeout
-  static boolean firstHeartbeatReceived = false;
-  private boolean heartbeatReceived = false;
+  private boolean firstHeartbeatReceived;
+  private boolean heartbeatReceived;
 
   // replica coordinator manager
   protected ActorRef coordinator;
@@ -93,6 +93,8 @@ public class Replica extends AbstractActor {
   public Replica() {
     this.seqno = 0;
     this.epoch = 0;
+    this.firstHeartbeatReceived = false;
+    this.heartbeatReceived = false;
     this.coordinator = getSelf();
     this.iscoordinator = true;
     this.replicas = new ArrayList<>();
@@ -113,6 +115,8 @@ public class Replica extends AbstractActor {
   public Replica(ActorRef coordinator) {
     this.seqno = 0;
     this.epoch = 0;
+    this.firstHeartbeatReceived = false;
+    this.heartbeatReceived = false;
     this.coordinator = coordinator;
     this.iscoordinator = false;
     this.replicas = new ArrayList<>();
@@ -276,7 +280,8 @@ public class Replica extends AbstractActor {
 
       Functions.setTimeout(getContext(), UPD_TIMEOUT, getSelf(), new UpdTimeout(msg.c_snd, msg.op_cnt));
     } else {
-      logger.info("Coordinator received write request from {} with value {}", Functions.getName(getSender()),
+      logger.info("{} received write request from {} with value {}", Functions.getName(getSelf()),
+          Functions.getName(getSender()),
           msg.new_value);
       Functions.multicast(new UpdRqMsg(msg.c_snd, epoch, ++seqno, msg.op_cnt, msg.new_value), replicas, getSelf());
     }
@@ -368,19 +373,18 @@ public class Replica extends AbstractActor {
   }
 
   private void coordinatorCrashRecovery(List<ActorRef> candidates) {
+    replicas.remove(coordinator);
+
     int selfIndex = replicas.indexOf(getSelf());
     int nextIndex = (selfIndex + 1) % replicas.size();
 
-    replicas.remove(coordinator);
-
     candidates.add(getSelf());
-    logger.info("{} sending an election message to {}", Functions.getName(getSelf()), Functions.getName(getSender()));
+    logger.info("{} sending an election message to {}", Functions.getName(getSelf()),
+        Functions.getName(replicas.get(nextIndex)));
     replicas.get(nextIndex).tell(new ElectionMsg(candidates), getSelf());
   }
 
   private void electCoordinator(List<ActorRef> candidates) {
-    int selfIndex = replicas.indexOf(getSelf());
-    int nextIndex = (selfIndex + 1) % replicas.size();
     int maxId = 0;
     ActorRef replicaMaxId = null;
 
@@ -390,6 +394,7 @@ public class Replica extends AbstractActor {
         replicaMaxId = c;
       }
     }
+    coordinator = replicaMaxId;
 
     if (replicaMaxId == getSelf()) {
       // TO DO: become coordinator
@@ -399,10 +404,15 @@ public class Replica extends AbstractActor {
       logger.info("{}: the new coordinator is me", Functions.getName(getSelf()));
     } else {
       logger.info("{}: the new coordinator is {}", Functions.getName(getSelf()), Functions.getName(replicaMaxId));
-      coordinator = replicaMaxId;
     }
 
-    replicas = candidates;
+    replicas.clear();
+    replicas.addAll(candidates);
+
+    int selfIndex = replicas.indexOf(getSelf());
+    int nextIndex = (selfIndex + 1) % replicas.size();
+    logger.info("{} sending coordinator message to {}", Functions.getName(getSelf()),
+        Functions.getName(replicas.get(nextIndex)));
     replicas.get(nextIndex).tell(new CoordinatorMsg(candidates), getSelf());
   }
 
@@ -411,7 +421,6 @@ public class Replica extends AbstractActor {
         Functions.getName(getSender()));
     if (msg.coordinatorCandidates.contains(getSelf())) {
       // if we are on the coordinator candidates list, send coordinator message
-      logger.info("{} ");
       electCoordinator(msg.coordinatorCandidates);
     } else {
       // otherwise keep passing the election message
@@ -420,7 +429,8 @@ public class Replica extends AbstractActor {
   }
 
   private void onCoordinatorMsg(CoordinatorMsg msg) {
-    electCoordinator(msg.coordinatorCandidates);
+    if (!replicas.contains(coordinator))
+      electCoordinator(msg.coordinatorCandidates);
   }
 
   private void onSendChatMsg(SendChatMsg msg) {
@@ -643,7 +653,7 @@ public class Replica extends AbstractActor {
 
   public void onCoordinatorHeartbeatPeriod(CoordinatorHeartbeatPeriod msg) {
     if (iscoordinator) {
-      logger.debug("Coordinator sent out a heartbeat message to all replicas");
+      logger.debug("{} sent out a heartbeat message to all replicas", Functions.getName(getSelf()));
       Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_PERIOD, getSelf(), new CoordinatorHeartbeatPeriod());
       CoordinatorHeartbeatMsg confAlive = new CoordinatorHeartbeatMsg();
       Functions.multicast(confAlive, replicas, getSelf());
@@ -653,14 +663,14 @@ public class Replica extends AbstractActor {
 
   public void onHeartbeatMsg(HeartbeatMsg msg) {
     if (iscoordinator) {
-      logger.debug("Coordinator got a heartbeat message from {}", Functions.getName(getSender()));
+      logger.debug("{} got a heartbeat message from {}", Functions.getName(getSelf()), Functions.getName(getSender()));
       replicasAlive.add(getSender());
     }
   }
 
   public void onHeartbeatTimeout(HeartbeatTimeout msg) {
     if (iscoordinator) {
-      logger.debug("Coordinator reached it's heartbeat timeout");
+      logger.debug("{} reached it's heartbeat timeout", Functions.getName(getSelf()));
       if (replicas.size() != replicasAlive.size()) {
         logger.warn("Some replicas did not respond. Initiating failure handling.");
 
@@ -677,12 +687,13 @@ public class Replica extends AbstractActor {
   private void onAck(AckMsg msg) {
     if (iscoordinator) {
       seqnoAckCounter.put(msg.seqno, seqnoAckCounter.getOrDefault(msg.seqno, 0) + 1);
-      logger.info("Coordinator received {} ack(s) from {} with seqno {}", seqnoAckCounter.get(msg.seqno),
+      logger.info("{} received {} ack(s) from {} with seqno {}", Functions.getName(getSelf()),
+          seqnoAckCounter.get(msg.seqno),
           Functions.getName(getSender()), msg.seqno);
       int Q = (replicas.size() / 2) + 1;
 
       if (seqnoAckCounter.get(msg.seqno) == Q) {
-        logger.info("Coordinator confirm the update to all the replica");
+        logger.info("{} confirm the update to all the replica", Functions.getName(getSelf()));
         Functions.multicast(new WrOk(epoch, seqno, getSelf()), replicas, getSelf());
       }
     }

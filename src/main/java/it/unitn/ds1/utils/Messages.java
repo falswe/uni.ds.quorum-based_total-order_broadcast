@@ -23,7 +23,7 @@ public class Messages {
     public List<ActorRef> coordinatorCandidates; // an array of group members
 
     public ElectionMsg(List<ActorRef> group) {
-      this.coordinatorCandidates = Collections.unmodifiableList(new ArrayList<>(group));
+      this.coordinatorCandidates = new ArrayList<>(group);
     }
   }
 
@@ -31,7 +31,7 @@ public class Messages {
     public List<ActorRef> coordinatorCandidates; // an array of group members
 
     public CoordinatorMsg(List<ActorRef> group) {
-      this.coordinatorCandidates = Collections.unmodifiableList(new ArrayList<>(group));
+      this.coordinatorCandidates = new ArrayList<>(group);
     }
   }
 
