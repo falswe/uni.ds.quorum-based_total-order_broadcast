@@ -2,11 +2,13 @@ package it.unitn.ds1.utils;
 
 import java.io.Serializable;
 import java.util.List;
-
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.ArrayList;
 import akka.actor.ActorRef;
 import it.unitn.ds1.actors.Replica.CrashType;
+import it.unitn.ds1.utils.Functions.EpochSeqno;
 
 public class Messages {
   /*-- Client Message classes ------------------------------------------------------ */
@@ -36,18 +38,18 @@ public class Messages {
   }
 
   public static class ElectionMsg implements Serializable {
-    public List<ActorRef> coordinatorCandidates; // an array of group members
+    public Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
 
-    public ElectionMsg(List<ActorRef> group) {
-      this.coordinatorCandidates = new ArrayList<>(group);
+    public ElectionMsg(Map<ActorRef, EpochSeqno> group) {
+      this.coordinatorCandidates = new HashMap<ActorRef, EpochSeqno>(group);
     }
   }
 
   public static class CoordinatorMsg implements Serializable {
-    public List<ActorRef> coordinatorCandidates; // an array of group members
+    public Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
 
-    public CoordinatorMsg(List<ActorRef> group) {
-      this.coordinatorCandidates = new ArrayList<>(group);
+    public CoordinatorMsg(Map<ActorRef, EpochSeqno> group) {
+      this.coordinatorCandidates = new HashMap<ActorRef, EpochSeqno>(group);
     }
   }
 
@@ -103,13 +105,13 @@ public class Messages {
 
   public static class AckMsg implements Serializable {
     public final int epoch;
-    public final ActorRef sender;
     public final int seqno;
+    public final ActorRef sender;
 
     public AckMsg(int epoch, int seqno, ActorRef sender) {
       this.epoch = epoch;
-      this.sender = sender;
       this.seqno = seqno;
+      this.sender = sender;
     }
   }
 
@@ -124,9 +126,11 @@ public class Messages {
   }
 
   public static class AckTimeout implements Serializable {
+    public final int epoch;
     public final int seqno;
 
-    public AckTimeout(final int seqno) {
+    public AckTimeout(final int epoch, final int seqno) {
+      this.epoch = epoch;
       this.seqno = seqno;
     }
   }
@@ -177,11 +181,9 @@ public class Messages {
 
   public static class CrashMsg implements Serializable {
     public final CrashType nextCrash;
-    public final Integer nextCrashAfter;
 
-    public CrashMsg(CrashType nextCrash, int nextCrashAfter) {
+    public CrashMsg(CrashType nextCrash) {
       this.nextCrash = nextCrash;
-      this.nextCrashAfter = nextCrashAfter;
     }
   }
 

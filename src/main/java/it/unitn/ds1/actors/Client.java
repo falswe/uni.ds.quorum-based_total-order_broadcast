@@ -66,11 +66,11 @@ public class Client extends AbstractActor {
 
     int rnd_op = rnd.nextInt(2);
 
-    if (rnd_op == 0) {
-      Read(2);
-    } else {
-      Write(2);
-    }
+    // if (rnd_op == 0) {
+    // Read(2);
+    // } else {
+    Write(2);
+    // }
   }
 
   private void Read(int seconds) {

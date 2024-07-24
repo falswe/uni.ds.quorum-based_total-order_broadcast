@@ -2,7 +2,6 @@ package it.unitn.ds1.utils;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
-import java.util.Set;
 
 import akka.actor.*;
 import scala.concurrent.duration.Duration;
@@ -12,6 +11,17 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 public class Functions {
+
+  public static class EpochSeqno {
+    public final int epoch;
+    public final int seqno;
+
+    public EpochSeqno(final int epoch, final int seqno) {
+      this.epoch = epoch;
+      this.seqno = seqno;
+    }
+  }
+
   /**
    * This function send a message m to the actor when the time specified ends.
    * 
@@ -21,8 +31,8 @@ public class Functions {
    *                Message
    * @param m       The message that will be sent
    */
-  public static void setTimeout(ActorContext context, int time, ActorRef actor, Serializable m) {
-    context.system().scheduler().scheduleOnce(
+  public static Cancellable setTimeout(ActorContext context, int time, ActorRef actor, Serializable m) {
+    return context.system().scheduler().scheduleOnce(
         Duration.create(time, TimeUnit.MILLISECONDS),
         actor,
         m,

@@ -47,9 +47,7 @@ public class QuorumBasedTotalOrderBroadcast {
       replica.tell(start, ActorRef.noSender());
     }
 
-    inputContinue();
-
-    replicas.get(0).tell(new CrashMsg(CrashType.NotResponding, 2), ActorRef.noSender());
+    replicas.get(0).tell(new CrashMsg(CrashType.WhileSendingUpdate), ActorRef.noSender());
 
     inputContinue();
 
