@@ -3,7 +3,6 @@ package it.unitn.ds1.actors;
 import akka.actor.*;
 import scala.concurrent.duration.Duration;
 
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -35,23 +34,6 @@ public class Client extends AbstractActor {
 
   static public Props props() {
     return Props.create(Client.class, Client::new);
-  }
-
-  /*-- Message classes ------------------------------------------------------ */
-
-  public static class RdRqMsg implements Serializable {
-  }
-
-  public static class WrRqMsg implements Serializable {
-    public final ActorRef c_snd;
-    public final int op_cnt;
-    public final int new_value;
-
-    public WrRqMsg(final ActorRef c_snd, final int op_cnt, final int new_value) {
-      this.c_snd = c_snd;
-      this.op_cnt = op_cnt;
-      this.new_value = new_value;
-    }
   }
 
   /*-- Actor logic ---------------------------------------------------------- */

@@ -9,6 +9,22 @@ import akka.actor.ActorRef;
 import it.unitn.ds1.actors.Replica.CrashType;
 
 public class Messages {
+  /*-- Client Message classes ------------------------------------------------------ */
+  public static class RdRqMsg implements Serializable {
+  }
+
+  public static class WrRqMsg implements Serializable {
+    public final ActorRef c_snd;
+    public final int op_cnt;
+    public final int new_value;
+
+    public WrRqMsg(final ActorRef c_snd, final int op_cnt, final int new_value) {
+      this.c_snd = c_snd;
+      this.op_cnt = op_cnt;
+      this.new_value = new_value;
+    }
+  }
+
   /*-- Replica Message classes ------------------------------------------------------ */
 
   public static class ChangeReplicaSet implements Serializable {
