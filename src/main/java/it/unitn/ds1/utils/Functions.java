@@ -7,10 +7,13 @@ import akka.actor.*;
 import scala.concurrent.duration.Duration;
 
 import java.util.List;
+import java.util.Random;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 public class Functions {
+
+  public final static int DELAYTIME = 100;
 
   public static class EpochSeqno {
     public final int epoch;
@@ -39,9 +42,15 @@ public class Functions {
         context.system().dispatcher(), actor);
   }
 
+  public static void tellDelay(Serializable m, ActorRef sender, ActorRef receiver) {
+    Random rnd = new Random();
+    try {Thread.sleep(rnd.nextInt(DELAYTIME));} catch (Exception ignored) {}
+    receiver.tell(m, sender);
+  }
+
   public static void multicast(Serializable m, List<ActorRef> receivers, ActorRef sender) {
     for (ActorRef r : receivers) {
-      r.tell(m, sender);
+      tellDelay(m, sender, r);
     }
   }
 

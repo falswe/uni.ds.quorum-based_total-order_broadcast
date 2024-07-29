@@ -38,20 +38,29 @@ public class Messages {
   }
 
   public static class ElectionMsg implements Serializable {
-    public Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
+    public final ActorRef crashedCoordinator;
+    public final Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
 
-    public ElectionMsg(Map<ActorRef, EpochSeqno> group) {
+    public ElectionMsg(ActorRef crashedCoordinator, Map<ActorRef, EpochSeqno> group) {
+      this.crashedCoordinator = crashedCoordinator;
       this.coordinatorCandidates = new HashMap<ActorRef, EpochSeqno>(group);
     }
+  }
+
+  public static class ElectionMsgAck implements Serializable {
   }
 
   public static class CoordinatorMsg implements Serializable {
-    public Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
+    public final Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
 
     public CoordinatorMsg(Map<ActorRef, EpochSeqno> group) {
-      this.coordinatorCandidates = new HashMap<ActorRef, EpochSeqno>(group);
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
     }
   }
+
+  public static class CoordinatorMsgAck implements Serializable {
+  }
+
 
   public static class RdRspMsg implements Serializable {
     public final int v;
@@ -132,6 +141,28 @@ public class Messages {
     public AckTimeout(final int epoch, final int seqno) {
       this.epoch = epoch;
       this.seqno = seqno;
+    }
+  }
+
+  public static class ElectionAckTimeout implements Serializable {
+    public final ActorRef nextReplica;
+    public final ActorRef crashed_c;
+    public final Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
+
+    public ElectionAckTimeout(final ActorRef nextReplica, final ActorRef crashed_c, final Map<ActorRef, EpochSeqno> group){
+      this.nextReplica = nextReplica;
+      this.crashed_c = crashed_c;
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
+    }
+  }
+
+  public static class CoordinatorAckTimeout implements Serializable {
+    public final ActorRef nextReplica;
+    public final Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
+
+    public CoordinatorAckTimeout(final ActorRef nextReplica, final Map<ActorRef, EpochSeqno> group){
+      this.nextReplica = nextReplica;
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
     }
   }
 

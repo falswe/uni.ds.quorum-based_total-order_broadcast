@@ -19,7 +19,7 @@
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss}\t%-5level\t%logger{36}\t %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %15replace(%logger){'it\.unitn\.ds1\.actors\.',''}\t%msg%n</pattern>
         </encoder>
     </appender>
 
