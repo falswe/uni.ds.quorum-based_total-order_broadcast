@@ -55,8 +55,8 @@ public class Client extends AbstractActor {
     // initialize group
     replicas.addAll(msg.group);
 
-    int rnd_op = rnd.nextInt(2);
-    int rnd_time = rnd.nextInt(100);
+    //int rnd_op = rnd.nextInt(2);
+    //int rnd_time = rnd.nextInt(100);
 
     // if (rnd_op == 0) {
     // Read(2);

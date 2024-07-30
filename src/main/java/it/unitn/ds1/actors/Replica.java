@@ -1,11 +1,8 @@
 package it.unitn.ds1.actors;
 
 import akka.actor.*;
-import scala.concurrent.duration.Duration;
 
-import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,11 +37,7 @@ public class Replica extends AbstractActor {
                                                                                       // response of the replicas
 
   // cancellable timeouts
-  private static Cancellable cUpdateTimeout;
-  private static Cancellable cWriteOkTimeout;
   private static Cancellable cReplicaHeartbeatTimeout;
-  private static Cancellable cCoordinatorHearbeatPeriod;
-  private static Cancellable cCoordinatorHearbeatTimeout;
 
   // used to start the hearbeat period timeout
   private boolean firstHeartbeatReceived;
@@ -86,22 +79,6 @@ public class Replica extends AbstractActor {
 
   protected CrashType nextCrash;
 
-  // other variables
-  private final Set<ActorRef> currentView;
-  private final Map<Integer, Set<ActorRef>> proposedView;
-
-  // last sequence number for each node message (to avoid delivering duplicates)
-  private final Map<ActorRef, Integer> membersSeqno;
-
-  // unstable messages
-  private final Set<ChatMsg> unstableMsgSet;
-
-  // deferred messages (of a future view)
-  private final Set<ChatMsg> deferredMsgSet;
-
-  // group view flushes
-  private final Map<Integer, Set<ActorRef>> flushes;
-
   /*-- Actor constructors --------------------------------------------------- */
   public Replica() {
     this.seqno = 0;
@@ -119,12 +96,6 @@ public class Replica extends AbstractActor {
     this.seqnoAckCounter = new HashMap<>();
     this.epochSeqnoValue = new HashMap<>();
     this.nextCrash = CrashType.NONE;
-    this.currentView = new HashSet<>();
-    this.proposedView = new HashMap<>();
-    this.unstableMsgSet = new HashSet<>();
-    this.deferredMsgSet = new HashSet<>();
-    this.flushes = new HashMap<>();
-    this.membersSeqno = new HashMap<>();
   }
 
   public Replica(ActorRef coordinator) {
@@ -143,12 +114,6 @@ public class Replica extends AbstractActor {
     this.seqnoAckCounter = new HashMap<>();
     this.epochSeqnoValue = new HashMap<>();
     this.nextCrash = CrashType.NONE;
-    this.currentView = new HashSet<>();
-    this.proposedView = new HashMap<>();
-    this.unstableMsgSet = new HashSet<>();
-    this.deferredMsgSet = new HashSet<>();
-    this.flushes = new HashMap<>();
-    this.membersSeqno = new HashMap<>();
   }
 
   static public Props props(ActorRef coordinator) {
@@ -183,7 +148,7 @@ public class Replica extends AbstractActor {
       Functions.tellDelay(msg, getSelf(), coordinator);
       // coordinator.tell(msg, getSelf());
 
-      cUpdateTimeout = Functions.setTimeout(getContext(), UPD_TIMEOUT, getSelf(),
+      Functions.setTimeout(getContext(), UPD_TIMEOUT, getSelf(),
           new UpdTimeout(msg.c_snd, msg.op_cnt));
     } else {
       logger.info("{} received write request from {} with value {}", Functions.getName(getSelf()),
@@ -209,7 +174,6 @@ public class Replica extends AbstractActor {
     logger.info("{} received UPDATE message from coordinator with value {} of epoch {} and seqno {}",
         Functions.getName(getSelf()), msg.value, msg.epoch, msg.seqno);
     Map<Integer, Integer> epochSeqno = Map.of(msg.epoch, msg.seqno);
-    logger.debug("epochSeqno put: {}", epochSeqno);
     epochSeqnoValue.put(epochSeqno, msg.value);
 
     Map<ActorRef, Integer> m = Map.of(msg.sender, msg.op_cnt);
@@ -218,8 +182,11 @@ public class Replica extends AbstractActor {
     Functions.tellDelay(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf(), coordinator);
     // coordinator.tell(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf());
 
-    cWriteOkTimeout = Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(),
+    Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(),
         new AckTimeout(msg.epoch, msg.seqno));
+
+    if (nextCrash == CrashType.AfterReceivingUpdate)
+      crash();
   }
 
   protected void onWrOk(WrOk msg) {
@@ -233,8 +200,6 @@ public class Replica extends AbstractActor {
   }
 
   protected void onUpdTimeout(UpdTimeout msg) {
-    // logger.debug("{} reached it's update timeout", Functions.getName(getSelf()));
-
     Map<ActorRef, Integer> m = Map.of(msg.c_snd, msg.op_cnt);
     if (!membersUpdRcvd.getOrDefault(m, false)) {
       logger.error("Replica {} did not receive update in time. Coordinator might have crashed.",
@@ -246,9 +211,6 @@ public class Replica extends AbstractActor {
   }
 
   protected void onAckTimeout(AckTimeout msg) {
-    // logger.debug("{} reached it's write_ok timeout",
-    // Functions.getName(getSelf()));
-
     Map<Integer, Integer> epochSeqno = Map.of(msg.epoch, msg.seqno);
     if (!AckRcvd.getOrDefault(epochSeqno, false)) {
       logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.",
@@ -274,9 +236,7 @@ public class Replica extends AbstractActor {
   }
 
   protected void onHeartbeatPeriod(HeartbeatPeriod msg) {
-    // logger.debug("{} reached it's heartbeat timeout",
-    // Functions.getName(getSelf()));
-
+    logger.debug("Replica {} Hearbeat Period reached", Functions.getName(getSelf()));
     if (!heartbeatReceived) {
       logger.error("{} did not heartbeat in time. Coordinator ({}) might have crashed.", Functions.getName(getSelf()),
           Functions.getName(coordinator));
@@ -292,9 +252,6 @@ public class Replica extends AbstractActor {
   private void onJoinGroupMsg(JoinGroupMsg msg) {
     // initialize group
     replicas.addAll(msg.group);
-
-    // at the beginning, the view includes all nodes in the group
-    currentView.addAll(replicas);
   }
 
   private void coordinatorCrashRecovery(ActorRef crashed_c, Map<ActorRef, EpochSeqno> candidates) {
@@ -369,8 +326,9 @@ public class Replica extends AbstractActor {
       logger.info("{} [e: {}, sn: {}]: the new coordinator is {}, replica-size {}", Functions.getName(getSelf()), epoch,
           seqno, Functions.getName(coordinator), replicas.size());
     }
-    if(cReplicaHeartbeatTimeout == null)
-      cReplicaHeartbeatTimeout = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatPeriod());
+    if (cReplicaHeartbeatTimeout == null)
+      cReplicaHeartbeatTimeout = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_TIMEOUT, getSelf(),
+          new HeartbeatPeriod());
 
     int selfIndex = replicas.indexOf(getSelf());
     int nextIndex = (selfIndex + 1) % replicas.size();
@@ -426,7 +384,6 @@ public class Replica extends AbstractActor {
   }
 
   private void onElectionAckTimeout(ElectionAckTimeout msg) {
-
     if (electionAcksReceived.getOrDefault(msg.nextReplica, 0) == 0) {
       logger.debug("{} has not received election msg ACK, remove {}", Functions.getName(getSelf()),
           Functions.getName(msg.nextReplica));
@@ -441,8 +398,8 @@ public class Replica extends AbstractActor {
       Functions.setTimeout(getContext(), EL_TIMEOUT, getSelf(),
           new ElectionAckTimeout(replicas.get(nextIndex), coordinator, msg.coordinatorCandidates));
     } else {
-      int ackReceived = electionAcksReceived.getOrDefault(getSender(), 0) - 1;
-      electionAcksReceived.put(getSender(), ackReceived);
+      int ackReceived = electionAcksReceived.get(msg.nextReplica) - 1;
+      electionAcksReceived.put(msg.nextReplica, ackReceived);
     }
   }
 
@@ -460,8 +417,8 @@ public class Replica extends AbstractActor {
       Functions.setTimeout(getContext(), EL_COORDINATOR_TIMEOUT, getSelf(),
           new CoordinatorAckTimeout(replicas.get(nextIndex), msg.coordinatorCandidates));
     } else {
-      int ackReceived = electionCoordinatorAcksReceived.getOrDefault(getSender(), 0) - 1;
-      electionCoordinatorAcksReceived.put(getSender(), ackReceived);
+      int ackReceived = electionCoordinatorAcksReceived.get(msg.nextReplica) - 1;
+      electionCoordinatorAcksReceived.put(msg.nextReplica, ackReceived);
     }
   }
 
@@ -477,9 +434,6 @@ public class Replica extends AbstractActor {
     // initialize group
     replicas.clear();
     replicas.addAll(msg.group);
-
-    // at the beginning, the view includes all nodes in the group
-    currentView.addAll(replicas);
   }
 
   public void onCoordinatorHeartbeatPeriod(CoordinatorHeartbeatPeriod msg) {
@@ -501,8 +455,6 @@ public class Replica extends AbstractActor {
 
   public void onHeartbeatTimeout(HeartbeatTimeout msg) {
     if (iscoordinator) {
-      // logger.debug("{} reached it's heartbeat timeout",
-      // Functions.getName(getSelf()));
       if (replicas.size() != replicasAlive.size()) {
         logger.warn("replicas did not respond. Initiating failure handling.");
         for (ActorRef r : replicasAlive) {
@@ -530,13 +482,13 @@ public class Replica extends AbstractActor {
         logger.info("{} confirm the update to all the replica", Functions.getName(getSelf()));
         if (nextCrash == CrashType.WhileSendingWriteOk) {
           Random rnd = new Random();
-          int omittedReplicaIndex = rnd.nextInt(replicas.size());
-          for (int i = 0; i < replicas.size(); i++) {
+          int omittedReplicaIndex = rnd.nextInt(replicas.size() - 1);
+          for (int i = 0; i < replicas.size() - 1; i++) {
             if (i != omittedReplicaIndex) {
-              Functions.tellDelay(new WrOk(msg.epoch, msg.seqno, getSelf()), getSelf(),
-                  replicas.get(i));
+              replicas.get(i).tell(new WrOk(msg.epoch, msg.seqno, getSelf()), getSelf());
             }
           }
+          crash();
         } else {
           Functions.multicast(new WrOk(msg.epoch, msg.seqno, getSelf()), replicas, getSelf());
         }

@@ -44,6 +44,14 @@ public class Functions {
 
   public static void tellDelay(Serializable m, ActorRef sender, ActorRef receiver) {
     Random rnd = new Random();
+    // ActorContext context = getContext();
+
+    // context.system().scheduler().scheduleOnce(
+    //     Duration.create(rnd.nextInt(DELAYTIME), TimeUnit.MILLISECONDS),
+    //     receiver,
+    //     m,
+    //     context.system().dispatcher(), sender);
+
     try {Thread.sleep(rnd.nextInt(DELAYTIME));} catch (Exception ignored) {}
     receiver.tell(m, sender);
   }

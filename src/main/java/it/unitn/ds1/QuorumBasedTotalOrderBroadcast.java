@@ -64,11 +64,19 @@ public class QuorumBasedTotalOrderBroadcast {
 
     inputContinue();
 
-    logger.info("Crashing Replica 2 during the election phase");
-    replicas.get(2).tell(new CrashMsg(CrashType.WhileElection), ActorRef.noSender());
-    logger.info("Crashing Replica 3 while choosing the Coordinator");
-    replicas.get(3).tell(new CrashMsg(CrashType.WhileChoosingCoordinator), ActorRef.noSender());
+    logger.info("Crashing Replica 0 (coordinator)");
     replicas.get(0).tell(new CrashMsg(CrashType.NotResponding), ActorRef.noSender());
+
+    inputContinue();
+
+    logger.info("Calling a Write Request from client 2");
+    clients.get(2).tell(new ClientWrite(), ActorRef.noSender());
+    logger.info("Crashing Replica 5 (coordinator) while sending Write Ok");
+    logger.info("Crashing Replica 2 during the election phase");
+    logger.info("Crashing Replica 3 while choosing the Coordinator");
+    replicas.get(2).tell(new CrashMsg(CrashType.WhileElection), ActorRef.noSender());
+    replicas.get(3).tell(new CrashMsg(CrashType.WhileChoosingCoordinator), ActorRef.noSender());
+    replicas.get(5).tell(new CrashMsg(CrashType.WhileSendingWriteOk), ActorRef.noSender());
 
     inputContinue();
   }
@@ -76,7 +84,9 @@ public class QuorumBasedTotalOrderBroadcast {
   public static void inputContinue() {
     try {
       System.out.println(">>> Press ENTER to continue <<<");
-      System.in.read();
+      while (System.in.read() != '\n') {
+        // Consume all characters until newline
+      }
     } catch (IOException ignored) {
     }
   }
