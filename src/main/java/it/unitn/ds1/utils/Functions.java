@@ -50,7 +50,7 @@ public class Functions {
 
   public static void multicast(Serializable m, List<ActorRef> receivers, ActorRef sender) {
     for (ActorRef r : receivers) {
-      tellDelay(m, sender, r);
+      r.tell(m, sender);
     }
   }
 

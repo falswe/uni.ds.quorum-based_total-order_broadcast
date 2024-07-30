@@ -11,6 +11,14 @@ import it.unitn.ds1.actors.Replica.CrashType;
 import it.unitn.ds1.utils.Functions.EpochSeqno;
 
 public class Messages {
+
+  /*-- Main to Client Message classes ------------------------------------------------------ */
+  public static class ClientRead implements Serializable {
+  }
+
+  public static class ClientWrite implements Serializable {
+  }
+
   /*-- Client Message classes ------------------------------------------------------ */
   public static class RdRqMsg implements Serializable {
   }
@@ -43,7 +51,7 @@ public class Messages {
 
     public ElectionMsg(ActorRef crashedCoordinator, Map<ActorRef, EpochSeqno> group) {
       this.crashedCoordinator = crashedCoordinator;
-      this.coordinatorCandidates = new HashMap<ActorRef, EpochSeqno>(group);
+      this.coordinatorCandidates = new HashMap<>(group);
     }
   }
 
@@ -54,7 +62,7 @@ public class Messages {
     public final Map<ActorRef, EpochSeqno> coordinatorCandidates; // an array of group members
 
     public CoordinatorMsg(Map<ActorRef, EpochSeqno> group) {
-      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<>(group));
     }
   }
 
@@ -152,7 +160,7 @@ public class Messages {
     public ElectionAckTimeout(final ActorRef nextReplica, final ActorRef crashed_c, final Map<ActorRef, EpochSeqno> group){
       this.nextReplica = nextReplica;
       this.crashed_c = crashed_c;
-      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<>(group));
     }
   }
 
@@ -162,7 +170,7 @@ public class Messages {
 
     public CoordinatorAckTimeout(final ActorRef nextReplica, final Map<ActorRef, EpochSeqno> group){
       this.nextReplica = nextReplica;
-      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<ActorRef, EpochSeqno>(group));
+      this.coordinatorCandidates = Collections.unmodifiableMap(new HashMap<>(group));
     }
   }
 

@@ -8,12 +8,19 @@ import it.unitn.ds1.utils.Messages.*;
 import it.unitn.ds1.actors.Replica.CrashType;
 
 import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.io.IOException;
 
 public class QuorumBasedTotalOrderBroadcast {
-  final static int N_REPLICAS = 4;
-  final static int N_CLIENTS = 1;
+  final static int N_REPLICAS = 6;
+  final static int N_CLIENTS = 4;
+
+  // needed for our logging framework
+  private static final Logger logger = LoggerFactory.getLogger(QuorumBasedTotalOrderBroadcast.class);
 
   public static void main(String[] args) {
 
@@ -49,6 +56,17 @@ public class QuorumBasedTotalOrderBroadcast {
 
     inputContinue();
 
+    logger.info("Initiating some Reads and Writes");
+    clients.get(1).tell(new ClientRead(), ActorRef.noSender());
+    clients.get(2).tell(new ClientWrite(), ActorRef.noSender());
+    clients.get(3).tell(new ClientWrite(), ActorRef.noSender());
+    clients.get(0).tell(new ClientRead(), ActorRef.noSender());
+
+    inputContinue();
+
+    logger.info("Crashing Replica 2 during the election phase");
+    replicas.get(2).tell(new CrashMsg(CrashType.WhileElection), ActorRef.noSender());
+    logger.info("Crashing Replica 3 while choosing the Coordinator");
     replicas.get(3).tell(new CrashMsg(CrashType.WhileChoosingCoordinator), ActorRef.noSender());
     replicas.get(0).tell(new CrashMsg(CrashType.NotResponding), ActorRef.noSender());
 

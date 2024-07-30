@@ -38,6 +38,14 @@ public class Client extends AbstractActor {
 
   /*-- Actor logic ---------------------------------------------------------- */
 
+  private void onClientRead(ClientRead m) {
+    Read(0);
+  }
+
+  private void onClientWrite(ClientWrite m) {
+    Write(0);
+  }
+
   private void onRdRspMsg(RdRspMsg m) {
     logger.info("Client {} read done {}", Functions.getId(getSelf()), m.v);
   }
@@ -53,7 +61,7 @@ public class Client extends AbstractActor {
     // if (rnd_op == 0) {
     // Read(2);
     // } else {
-    Write(rnd_time);
+    // Write(rnd_time);
     // }
   }
 
@@ -93,6 +101,8 @@ public class Client extends AbstractActor {
   @Override
   public Receive createReceive() {
     return receiveBuilder()
+        .match(ClientRead.class, this::onClientRead)
+        .match(ClientWrite.class, this::onClientWrite)
         .match(RdRspMsg.class, this::onRdRspMsg)
         .match(JoinGroupMsg.class, this::onJoinGroupMsg)
         .build();
