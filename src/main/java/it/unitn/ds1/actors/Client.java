@@ -38,22 +38,6 @@ public class Client extends AbstractActor {
 
   /*-- Actor logic ---------------------------------------------------------- */
 
-  @Override
-  public void preStart() {
-
-    // schedule Read Request
-    /*
-     * getContext().system().scheduler().scheduleOnce(
-     * Duration.create(2, TimeUnit.SECONDS), // when to send the message
-     * replicas.get(0), // destination actor reference
-     * new RdRqMsg(), // the message to send
-     * getContext().system().dispatcher(), // system dispatcher
-     * getSelf() // source of the message (myself)
-     * );
-     */
-
-  }
-
   private void onRdRspMsg(RdRspMsg m) {
     logger.info("Client {} read done {}", Functions.getId(getSelf()), m.v);
   }

@@ -53,63 +53,6 @@ public class QuorumBasedTotalOrderBroadcast {
     replicas.get(0).tell(new CrashMsg(CrashType.NotResponding), ActorRef.noSender());
 
     inputContinue();
-
-    /*
-     * 
-     * // Create new nodes and make them join the existing group
-     * ActorRef joiningFirst = system.actorOf(VirtualSynchActor.props(manager,
-     * true), "vsnodeJ0");
-     * 
-     * inputContinue();
-     * 
-     * ActorRef joiningSecond = system.actorOf(VirtualSynchActor.props(manager,
-     * true), "vsnodeJ1");
-     * 
-     * inputContinue();
-     * 
-     * // Make one of the new nodes crash while sending stabilization,
-     * // and the other while sending the flush (which will occur due to the first
-     * crash);
-     * // nextCrashAfter in CrashMsg controls how many messages are correctly sent
-     * before crashing
-     * //joiningFirst.tell(new CrashMsg(CrashType.StableChatMsg, 2),
-     * ActorRef.noSender());
-     * joiningFirst.tell(new CrashMsg(CrashType.StableChatMsg, 2),
-     * ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * joiningSecond.tell(new CrashMsg(CrashType.ViewFlushMsg, 0),
-     * ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * // Restart nodes (they will join again through the manager)
-     * joiningFirst.tell(new RecoveryMsg(), ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * joiningSecond.tell(new RecoveryMsg(), ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * // Make one of the new nodes crash while sending stabilization,
-     * // and the other while sending the flush (which will occur due to the first
-     * crash);
-     * // nextCrashAfter in CrashMsg controls how many messages are correctly sent
-     * before crashing
-     * joiningSecond.tell(new CrashMsg(CrashType.ViewFlushMsg, 1),
-     * ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * joiningFirst.tell(new CrashMsg(CrashType.ChatMsg, 1), ActorRef.noSender());
-     * 
-     * inputContinue();
-     * 
-     * // system shutdown
-     * system.terminate();
-     */
   }
 
   public static void inputContinue() {

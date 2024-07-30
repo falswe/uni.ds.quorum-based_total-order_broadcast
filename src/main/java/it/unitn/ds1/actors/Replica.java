@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import it.unitn.ds1.twophasecommit.TwoPhaseCommit.Coordinator;
 import it.unitn.ds1.utils.Functions;
 import it.unitn.ds1.utils.Functions.EpochSeqno;
 import it.unitn.ds1.utils.Messages.*;
@@ -171,121 +170,6 @@ public class Replica extends AbstractActor {
       Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_PERIOD, getSelf(), new CoordinatorHeartbeatPeriod());
     }
   }
-
-  /*-- Helper methods ---------------------------------------------------------- */
-
-  private int multicast(Serializable m, Set<ActorRef> multicastGroup) {
-    int i = 0;
-    Random rnd = new Random();
-
-    for (ActorRef r : multicastGroup) {
-
-      // send m to r (except to self)
-      if (!r.equals(getSelf())) {
-
-        // model a random network/processing delay
-        try {
-          Thread.sleep(rnd.nextInt(10));
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-
-        Functions.tellDelay(m, getSelf(), r);
-        // r.tell(m, getSelf());
-        i++;
-      }
-    }
-
-    return i;
-  }
-
-  // TODO (solution) create void putInFlushes and boolean isViewFlushed methods
-
-  private void putInFlushes(int viewId, ActorRef flushSender) {
-    Set<ActorRef> flushed = flushes.getOrDefault(viewId, new HashSet<>());
-    flushed.add(flushSender);
-    flushes.put(viewId, flushed);
-  }
-
-  private boolean isViewFlushed(int viewId) {
-    if (flushes.containsKey(viewId) && proposedView.containsKey(viewId + 1)) {
-      return flushes.get(viewId).containsAll(proposedView.get(viewId + 1));
-    }
-    return false;
-  }
-
-  private boolean isViewChanging() {
-
-    // TODO (solution) implement effective view change status check
-
-    // in this implementation, a node adds a flush for itself upon receiving a
-    // ViewChangeMsg,
-    // and old flushes are removed when a view is installed;
-    // thus, checking if there is an ongoing view change is trivial:
-    // if there is any flush message, there is a view change that has not completed
-    // yet.
-    return !flushes.isEmpty();
-  }
-
-  private void deliver(ChatMsg m, boolean deferred) {
-    if (membersSeqno.getOrDefault(m.sender, 0) < m.seqno) {
-      membersSeqno.put(m.sender, m.seqno);
-      System.out.println(
-          getSelf().path().name() + " delivers " + m.seqno
-              + " from " + m.sender.path().name() + " in view " + (deferred ? m.viewId : this.epoch)
-              + (deferred ? " (deferred)" : ""));
-    }
-  }
-
-  private boolean canDeliver(int viewId) {
-    return this.epoch == viewId;
-  }
-
-  private void deferredDeliver(int prevViewId, int nextViewId) {
-
-    // due to multiple crashes, some views may not have been installed;
-    // make sure you deliver all pending messages between views
-    for (int i = prevViewId; i <= nextViewId; i++) {
-      for (ChatMsg m : deferredMsgSet) {
-        if (m.viewId == i) {
-          deliver(m, true);
-        }
-      }
-    }
-  }
-
-  private void installView(int viewId) {
-
-    // check if there are messages waiting to be delivered in the new view
-    deferredDeliver(this.epoch, viewId);
-
-    // update view ID
-    this.epoch = viewId;
-
-    // System.out.println(getSelf().path().name() + " flushes before view change " +
-    // this.viewId + " " + flushes);
-
-    // remove flushes, unstable and deferred messages of the old views
-    flushes.entrySet().removeIf(entry -> entry.getKey() < this.epoch);
-    unstableMsgSet.removeIf(unstableMsg -> unstableMsg.viewId < this.epoch);
-    deferredMsgSet.removeIf(deferredMsg -> deferredMsg.viewId <= this.epoch);
-
-    // System.out.println(getSelf().path().name() + " flushes after view change " +
-    // this.viewId + " " + flushes);
-
-    // update current view
-    currentView.clear();
-    currentView.addAll(proposedView.get(this.epoch));
-
-    // remove proposed view entry as it is not needed anymore
-    proposedView.entrySet().removeIf(entry -> entry.getKey() <= this.epoch);
-
-    System.out.println(
-        getSelf().path().name() + " installs view " + this.epoch + " " + currentView
-            + " with updated proposedView " + proposedView);
-  }
-
-  /*-- Actor message handlers ---------------------------------------------------------- */
 
   protected void onRdRqMsg(RdRqMsg msg) {
     logger.info("{} received read request from client {}", Functions.getName(getSelf()),
@@ -566,203 +450,6 @@ public class Replica extends AbstractActor {
     }
   }
 
-  private void onSendChatMsg(SendChatMsg msg) {
-    Random rnd = new Random();
-
-    // schedule next ChatMsg
-    getContext().system().scheduler().scheduleOnce(
-        Duration.create(rnd.nextInt(1000) + 300, TimeUnit.MILLISECONDS),
-        getSelf(), // destination actor reference
-        new SendChatMsg(), // the message to send
-        getContext().system().dispatcher(), // system dispatcher
-        getSelf() // source of the message (myself)
-    );
-
-    // avoid transmitting during view changes
-    if (isViewChanging())
-      return;
-
-    // prepare chat message and add it to the unstable set
-    String content = "Message " + seqno + " in view " + currentView;
-    ChatMsg m = new ChatMsg(epoch, getSelf(), seqno, content);
-    unstableMsgSet.add(m);
-
-    // send message to the group
-    int numSent = multicast(m, currentView);
-    System.out.println(
-        getSelf().path().name() + " multicasts " + m.seqno
-            + " in view " + this.epoch + " to " + (currentView.size() - 1) + " nodes"
-            + " (" + numSent + ", " + currentView + ")");
-
-    // increase local sequence number (for packet identification)
-    seqno++;
-
-    // check if the node should crash
-    if (nextCrash.name().equals(CrashType.ChatMsg.name())) {
-      crash();
-      return;
-    }
-
-    // after the message has been sent, it is stable for the sender
-    unstableMsgSet.remove(m);
-
-    // broadcast stabilization message
-    multicast(new StableChatMsg(m), currentView);
-
-    // check if the node should crash
-    if (nextCrash.name().equals(CrashType.StableChatMsg.name())) {
-      crash();
-    }
-  }
-
-  private void onChatMsg(ChatMsg msg) {
-
-    // ignore own messages (may have been sent during flush protocol)
-    if (getSelf().equals(msg.sender))
-      return;
-
-    // the node will deliver the message, but it will also be kept in the unstable
-    // set;
-    // if the initiator crashes, we can retransmit the unstable message
-    unstableMsgSet.add(msg);
-
-    // deliver immediately or add to deferred to deliver in a future view
-    if (canDeliver(msg.viewId)) {
-      deliver(msg, false);
-    } else {
-      System.out.println(getSelf().path().name() + " deferred " + msg.seqno + " from " + msg.sender.path().name());
-      deferredMsgSet.add(msg);
-    }
-
-    // send message to self in order to timeout while waiting stabilization;
-    // schedule timeout only if the message was sent by the original initiator,
-    // this way we prevent setting a timeout during flush protocol
-    if (getSender().equals(msg.sender)) {
-      getContext().system().scheduler().scheduleOnce(
-          Duration.create(1000, TimeUnit.MILLISECONDS), // how frequently generate them
-          getSelf(), // destination actor reference
-          new StableTimeoutMsg(msg, getSender()), // the message to send
-          getContext().system().dispatcher(), // system dispatcher
-          getSelf() // source of the message (myself)
-      );
-    }
-  }
-
-  private void onStableChatMsg(StableChatMsg msg) {
-    unstableMsgSet.remove(msg.stableMsg);
-  }
-
-  private void onStableTimeoutMsg(StableTimeoutMsg msg) {
-
-    // check if the message is still unstable
-    if (!unstableMsgSet.contains(msg.unstableMsg))
-      return;
-
-    // alert the manager about the crashed node
-    Set<ActorRef> crashed = new HashSet<>();
-    crashed.add(msg.unstableMsg.sender);
-    // coordinator.tell(new CrashReportMsg(crashed), getSelf());
-  }
-
-  private void onCrashedChatMsg(ChatMsg msg) {
-
-    // deliver immediately or ignore the message;
-    // used to debug virtual synchrony correctness
-    if (msg.viewId >= this.epoch) {
-      if (membersSeqno.getOrDefault(msg.sender, 0) < msg.seqno) {
-        membersSeqno.put(msg.sender, msg.seqno);
-        System.out.println(
-            "(crashed) " +
-                getSelf().path().name() + " delivers " + msg.seqno
-                + " from " + msg.sender.path().name() + " in view " + msg.viewId);
-      }
-    }
-  }
-
-  // TODO (solution) implement view flushing
-
-  private void onViewChangeMsg(ViewChangeMsg msg) {
-
-    System.out.println(
-        getSelf().path().name() + " initiates view change " + this.epoch + "->" + msg.viewId
-            + " " + this.proposedView + "->" + msg.proposedView);
-
-    // check whether the node is in the view;
-    // the message may have been caused by another node joining
-    // and this one may not be part of the view yet
-    if (!msg.proposedView.contains(getSelf()))
-      return;
-
-    // store the proposed view to begin transition
-    proposedView.put(msg.viewId, new HashSet<>(msg.proposedView));
-
-    // first, send all unstable messages (to the nodes in the new view)
-    for (ChatMsg unstableMsg : unstableMsgSet) {
-      boolean resend = unstableMsg.viewId == this.epoch;
-      System.out.println(getSelf().path().name() + " may resend (" + resend + ") " + unstableMsg.seqno + " from "
-          + unstableMsg.sender.path().name());
-      if (resend) {
-        multicast(unstableMsg, proposedView.get(msg.viewId));
-      }
-    }
-
-    // then, multicast flush messages
-    multicast(new ViewFlushMsg(msg.viewId - 1), proposedView.get(msg.viewId));
-
-    // check if the node should crash
-    if (nextCrash.name().equals(CrashType.ViewFlushMsg.name())) {
-      crash();
-    }
-
-    // add self to already flushed for the previous view
-    putInFlushes(msg.viewId - 1, getSelf());
-
-    // check if all flushes were already received;
-    // (ViewChangeMsg from the manager could be delayed wrt flushes)
-    if (isViewFlushed(msg.viewId - 1)) {
-      installView(msg.viewId);
-    } else {
-
-      // send message to self in order to timeout while waiting flushes
-      getContext().system().scheduler().scheduleOnce(
-          Duration.create(500, TimeUnit.MILLISECONDS), // how frequently generate them
-          getSelf(), // destination actor reference
-          new FlushTimeoutMsg(this.epoch), // the message to send
-          getContext().system().dispatcher(), // system dispatcher
-          getSelf() // source of the message (myself)
-      );
-    }
-  }
-
-  // TODO (solution) use the suggested flush messages (below) for view change
-
-  private void onViewFlushMsg(ViewFlushMsg msg) {
-    System.out
-        .println(getSelf().path().name() + " adds flush of view " + msg.viewId + " from " + getSender().path().name());
-
-    // add sender to flush map at the corresponding view ID
-    putInFlushes(msg.viewId, getSender());
-
-    // check if all flushed were received
-    if (isViewFlushed(msg.viewId)) {
-      installView(msg.viewId + 1);
-    }
-  }
-
-  private void onFlushTimeoutMsg(FlushTimeoutMsg msg) {
-    // System.out.println(getSelf().path().name() + " timeouts with current flushes
-    // " + flushes);
-
-    // check if there still are missing flushes
-    if (!flushes.containsKey(msg.viewId))
-      return;
-
-    // find all nodes whose flush has not been received
-    Set<ActorRef> crashed = new HashSet<>(proposedView.get(msg.viewId + 1));
-    crashed.removeAll(flushes.get(msg.viewId));
-    // coordinator.tell(new CrashReportMsg(crashed), getSelf());
-  }
-
   private void onCrashMsg(CrashMsg msg) {
     if (msg.nextCrash == CrashType.NotResponding) {
       crash();
@@ -778,10 +465,6 @@ public class Replica extends AbstractActor {
 
     // at the beginning, the view includes all nodes in the group
     currentView.addAll(replicas);
-  }
-
-  private void onRecoveryMsgBeforeCrash(RecoveryMsg msg) {
-    System.out.println(getSelf().path().name() + " will recover immediately");
   }
 
   public void onCoordinatorHeartbeatPeriod(CoordinatorHeartbeatPeriod msg) {
@@ -861,17 +544,9 @@ public class Replica extends AbstractActor {
         .match(AckTimeout.class, this::onAckTimeout)
         .match(CoordinatorHeartbeatMsg.class, this::onCoordinatorHeartbeatMsg)
         .match(HeartbeatPeriod.class, this::onHeartbeatPeriod)
-        .match(SendChatMsg.class, this::onSendChatMsg)
-        .match(ChatMsg.class, this::onChatMsg)
         .match(WrOk.class, this::onWrOk)
-        .match(StableChatMsg.class, this::onStableChatMsg)
-        .match(StableTimeoutMsg.class, this::onStableTimeoutMsg)
-        .match(ViewChangeMsg.class, this::onViewChangeMsg)
-        .match(ViewFlushMsg.class, this::onViewFlushMsg)
-        .match(FlushTimeoutMsg.class, this::onFlushTimeoutMsg)
         .match(CrashMsg.class, this::onCrashMsg)
         .match(ChangeReplicaSet.class, this::onChangeReplicaSet)
-        .match(RecoveryMsg.class, this::onRecoveryMsgBeforeCrash)
         .match(CoordinatorHeartbeatPeriod.class, this::onCoordinatorHeartbeatPeriod)
         .match(HeartbeatMsg.class, this::onHeartbeatMsg)
         .match(AckMsg.class, this::onAck)
@@ -882,8 +557,6 @@ public class Replica extends AbstractActor {
         .match(CoordinatorMsg.class, this::onCoordinatorMsg)
         .match(CoordinatorMsgAck.class, this::onCoordinatorMsgAck)
         .match(CoordinatorAckTimeout.class, this::onCoordinatorAckTimeout)
-        // .match(RecoveryMsg.class, msg -> System.out.println(getSelf().path().name() +
-        // " ignoring RecoveryMsg"))
         .build();
   }
 
