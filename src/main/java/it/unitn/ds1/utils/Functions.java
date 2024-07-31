@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import akka.actor.*;
 import scala.concurrent.duration.Duration;
 
+import java.util.Objects;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Pattern;
@@ -22,6 +23,19 @@ public class Functions {
     public EpochSeqno(final int epoch, final int seqno) {
       this.epoch = epoch;
       this.seqno = seqno;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EpochSeqno that = (EpochSeqno) o;
+        return epoch == that.epoch && seqno == that.seqno;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(epoch, seqno);
     }
   }
 

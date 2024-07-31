@@ -484,7 +484,8 @@ public class Replica extends AbstractActor {
   private void onAck(AckMsg msg) {
     if (iscoordinator) {
       EpochSeqno es = new EpochSeqno(msg.epoch, msg.seqno);
-      epochSeqnoAckCounter.put(es, epochSeqnoAckCounter.getOrDefault(msg.seqno, 0) + 1);
+      int counter = epochSeqnoAckCounter.getOrDefault(es, 0) + 1;
+      epochSeqnoAckCounter.put(es, counter);
       logger.info("{} received {} ack(s) from {} of epoch {} seqno {}", Functions.getName(getSelf()),
           epochSeqnoAckCounter.get(es),
           Functions.getName(getSender()), msg.epoch, msg.seqno);
