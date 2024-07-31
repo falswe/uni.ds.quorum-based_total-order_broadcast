@@ -14,9 +14,19 @@ public class Messages {
 
   /*-- Main to Client Message classes ------------------------------------------------------ */
   public static class ClientRead implements Serializable {
+    public final int replicaId;
+
+    public ClientRead(int replicaId){
+      this.replicaId = replicaId;
+    }
   }
 
   public static class ClientWrite implements Serializable {
+    public final int replicaId;
+
+    public ClientWrite(int replicaId){
+      this.replicaId = replicaId;
+    }
   }
 
   /*-- Client Message classes ------------------------------------------------------ */

@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 
 public class QuorumBasedTotalOrderBroadcast {
-  final static int N_REPLICAS = 6;
+  final static int N_REPLICAS = 10;
   final static int N_CLIENTS = 4;
 
   // needed for our logging framework
@@ -57,10 +57,11 @@ public class QuorumBasedTotalOrderBroadcast {
     inputContinue();
 
     logger.info("Initiating some Reads and Writes");
-    clients.get(1).tell(new ClientRead(), ActorRef.noSender());
-    clients.get(2).tell(new ClientWrite(), ActorRef.noSender());
-    clients.get(3).tell(new ClientWrite(), ActorRef.noSender());
-    clients.get(0).tell(new ClientRead(), ActorRef.noSender());
+    clients.get(2).tell(new ClientRead(1), ActorRef.noSender());
+    clients.get(1).tell(new ClientRead(0), ActorRef.noSender());
+    clients.get(2).tell(new ClientWrite(2), ActorRef.noSender());
+    clients.get(3).tell(new ClientWrite(3), ActorRef.noSender());
+    clients.get(0).tell(new ClientRead(2), ActorRef.noSender());
 
     inputContinue();
 
@@ -69,14 +70,23 @@ public class QuorumBasedTotalOrderBroadcast {
 
     inputContinue();
 
-    logger.info("Calling a Write Request from client 2");
-    clients.get(2).tell(new ClientWrite(), ActorRef.noSender());
-    logger.info("Crashing Replica 5 (coordinator) while sending Write Ok");
+    logger.info("Calling a Write Request from client 0");
+    clients.get(0).tell(new ClientWrite(3), ActorRef.noSender());
+    logger.info("Crashing Replica 9 (coordinator) while sending Update");
+    replicas.get(9).tell(new CrashMsg(CrashType.WhileSendingUpdate), ActorRef.noSender());
     logger.info("Crashing Replica 2 during the election phase");
-    logger.info("Crashing Replica 3 while choosing the Coordinator");
     replicas.get(2).tell(new CrashMsg(CrashType.WhileElection), ActorRef.noSender());
+
+    inputContinue();
+
+    logger.info("Calling a Write Request from client 2");
+    clients.get(2).tell(new ClientWrite(1), ActorRef.noSender());
+    logger.info("Crashing Replica 1 after receiving Update");
+    replicas.get(1).tell(new CrashMsg(CrashType.AfterReceivingUpdate), ActorRef.noSender());
+    logger.info("Crashing Replica 8 (coordinator) while sending Write Ok");
+    replicas.get(8).tell(new CrashMsg(CrashType.WhileSendingWriteOk), ActorRef.noSender());
+    logger.info("Crashing Replica 3 while choosing the Coordinator");
     replicas.get(3).tell(new CrashMsg(CrashType.WhileChoosingCoordinator), ActorRef.noSender());
-    replicas.get(5).tell(new CrashMsg(CrashType.WhileSendingWriteOk), ActorRef.noSender());
 
     inputContinue();
   }

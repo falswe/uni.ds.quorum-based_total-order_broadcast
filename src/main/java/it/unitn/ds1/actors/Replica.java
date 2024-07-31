@@ -60,7 +60,8 @@ public class Replica extends AbstractActor {
   private final Map<Map<Integer, Integer>, Boolean> AckRcvd;
 
   // coordinator counters for acknowledgement received
-  private final Map<Integer, Integer> seqnoAckCounter;
+  private final Map<EpochSeqno, Integer> epochSeqnoAckCounter;
+  private final Map<EpochSeqno, Boolean> epochSeqnoConfirmUpdate;
 
   // list of epoch and sequence number related to the value communicated from the
   // coordinator
@@ -93,7 +94,8 @@ public class Replica extends AbstractActor {
     this.replicasAlive = new ArrayList<>();
     this.membersUpdRcvd = new HashMap<>();
     this.AckRcvd = new HashMap<>();
-    this.seqnoAckCounter = new HashMap<>();
+    this.epochSeqnoAckCounter = new HashMap<>();
+    this.epochSeqnoConfirmUpdate = new HashMap<>();
     this.epochSeqnoValue = new HashMap<>();
     this.nextCrash = CrashType.NONE;
   }
@@ -111,7 +113,8 @@ public class Replica extends AbstractActor {
     this.replicasAlive = new ArrayList<>();
     this.membersUpdRcvd = new HashMap<>();
     this.AckRcvd = new HashMap<>();
-    this.seqnoAckCounter = new HashMap<>();
+    this.epochSeqnoAckCounter = new HashMap<>();
+    this.epochSeqnoConfirmUpdate = new HashMap<>();
     this.epochSeqnoValue = new HashMap<>();
     this.nextCrash = CrashType.NONE;
   }
@@ -179,7 +182,7 @@ public class Replica extends AbstractActor {
     Map<ActorRef, Integer> m = Map.of(msg.sender, msg.op_cnt);
     membersUpdRcvd.put(m, true);
 
-    Functions.tellDelay(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf(), coordinator);
+    Functions.tellDelay(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf(), getSender());
     // coordinator.tell(new AckMsg(msg.epoch, msg.seqno, msg.sender), getSelf());
 
     Functions.setTimeout(getContext(), WRITEOK_TIMEOUT, getSelf(),
@@ -316,6 +319,7 @@ public class Replica extends AbstractActor {
     if (coordinator == getSelf()) {
       iscoordinator = true;
       epoch++;
+      seqno = 0;
       onCoordinatorHeartbeatPeriod(new CoordinatorHeartbeatPeriod());
       logger.info("{} [e: {}, sn: {}]: the new coordinator is me, replica-size {}", Functions.getName(getSelf()), epoch,
           seqno, replicas.size());
@@ -457,11 +461,18 @@ public class Replica extends AbstractActor {
     if (iscoordinator) {
       if (replicas.size() != replicasAlive.size()) {
         logger.warn("replicas did not respond. Initiating failure handling.");
-        for (ActorRef r : replicasAlive) {
-          logger.warn("{} is alive", Functions.getName(r));
-          if (!replicas.contains(r))
-            replicas.remove(r);
+        List<ActorRef> deadReplicas = new ArrayList<>();
+        for (ActorRef r : replicas) {
+          if (!replicasAlive.contains(r))
+          {
+            deadReplicas.add(r);
+            logger.warn("{} is dead", Functions.getName(r));
+          }
+          else
+            logger.warn("{} is alive", Functions.getName(r));
         }
+        replicas.removeAll(deadReplicas);
+
 
         // contact all replicas with the new replicas Set of alive replicas
         Functions.multicast(new ChangeReplicaSet(replicas), replicas, coordinator);
@@ -472,13 +483,14 @@ public class Replica extends AbstractActor {
 
   private void onAck(AckMsg msg) {
     if (iscoordinator) {
-      seqnoAckCounter.put(msg.seqno, seqnoAckCounter.getOrDefault(msg.seqno, 0) + 1);
-      logger.info("{} received {} ack(s) from {} with seqno {}", Functions.getName(getSelf()),
-          seqnoAckCounter.get(msg.seqno),
-          Functions.getName(getSender()), msg.seqno);
+      EpochSeqno es = new EpochSeqno(msg.epoch, msg.seqno);
+      epochSeqnoAckCounter.put(es, epochSeqnoAckCounter.getOrDefault(msg.seqno, 0) + 1);
+      logger.info("{} received {} ack(s) from {} of epoch {} seqno {}", Functions.getName(getSelf()),
+          epochSeqnoAckCounter.get(es),
+          Functions.getName(getSender()), msg.epoch, msg.seqno);
       int Q = (replicas.size() / 2) + 1;
 
-      if (seqnoAckCounter.get(msg.seqno) == Q) {
+      if (epochSeqnoAckCounter.get(es) >= Q && epochSeqnoConfirmUpdate.getOrDefault(es, true)) {
         logger.info("{} confirm the update to all the replica", Functions.getName(getSelf()));
         if (nextCrash == CrashType.WhileSendingWriteOk) {
           Random rnd = new Random();
@@ -492,6 +504,7 @@ public class Replica extends AbstractActor {
         } else {
           Functions.multicast(new WrOk(msg.epoch, msg.seqno, getSelf()), replicas, getSelf());
         }
+        epochSeqnoConfirmUpdate.put(es, false);
       }
     }
   }

@@ -39,11 +39,11 @@ public class Client extends AbstractActor {
   /*-- Actor logic ---------------------------------------------------------- */
 
   private void onClientRead(ClientRead m) {
-    Read(0);
+    Read(0, m.replicaId);
   }
 
   private void onClientWrite(ClientWrite m) {
-    Write(0);
+    Write(0, m.replicaId);
   }
 
   private void onRdRspMsg(RdRspMsg m) {
@@ -65,31 +65,31 @@ public class Client extends AbstractActor {
     // }
   }
 
-  private void Read(int milliseconds) {
+  private void Read(int milliseconds, int replicaId) {
     // schedule Read Request
-    int rand_replica = rnd.nextInt(replicas.size());
-    logger.info("Client {} read req to {}", Functions.getId(getSelf()), rand_replica);
+    //int rand_replica = rnd.nextInt(replicas.size());
+    logger.info("Client {} read req to {}", Functions.getId(getSelf()), replicaId);
 
     getContext().system().scheduler().scheduleOnce(
         Duration.create(milliseconds, TimeUnit.MILLISECONDS), // when to send the message
-        replicas.get(rand_replica), // destination actor reference, a random replica
+        replicas.get(replicaId), // destination actor reference, a random replica
         new RdRqMsg(), // the message to send
         getContext().system().dispatcher(), // system dispatcher
         getSelf() // source of the message (myself)
     );
   }
 
-  private void Write(int milliseconds) {
+  private void Write(int milliseconds, int replicaId) {
     // schedule Write Request
-    int rand_replica = rnd.nextInt(replicas.size());
+    //int rand_replica = rnd.nextInt(replicas.size());
     int new_value = rnd.nextInt(100);
     logger.info("Client {} send write request to {} with value {}", Functions.getId(getSelf()),
-        Functions.getName(replicas.get(rand_replica)),
+        Functions.getName(replicas.get(replicaId)),
         new_value);
 
     getContext().system().scheduler().scheduleOnce(
         Duration.create(milliseconds, TimeUnit.MILLISECONDS), // when to send the message
-        replicas.get(rand_replica), // destination actor reference, a random replica
+        replicas.get(replicaId), // destination actor reference, a random replica
         new WrRqMsg(getSelf(), ++op_cnt, new_value), // the message to send
         getContext().system().dispatcher(), // system dispatcher
         getSelf() // source of the message (myself)
