@@ -244,7 +244,7 @@ public class Messages {
   public static class CoordinatorHeartbeatPeriod implements Serializable {
   }
 
-  public static class HeartbeatTimeout implements Serializable {
+  public static class CoordinatorHeartbeatTimeout implements Serializable {
   }
 
   public static class CoordinatorHeartbeatMsg implements Serializable {

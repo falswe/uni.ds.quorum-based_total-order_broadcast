@@ -23,21 +23,23 @@ public class Replica extends AbstractActor {
   private int seqno;
 
   // timeouts
-  private final static int UPD_TIMEOUT = 1000; // Timeout for the update from coordinator, ms
-  private final static int WRITEOK_TIMEOUT = 1000; // Timeout for the writeok from coordinator, ms
-  private final static int REPLICA_HEARTBEAT_TIMEOUT = Functions.DELAYTIME + 2000; // Timeout for the heartbeat from
+  private final static int UPD_TIMEOUT = 1000;                                     // Timeout for the update from coordinator, ms
+  private final static int WRITEOK_TIMEOUT = 1000;                                 // Timeout for the writeok from coordinator, ms
+  private final static int REPLICA_HEARTBEAT_PERIOD = Functions.DELAYTIME + 2000;  // Timeout for the heartbeat from
                                                                                    // coordinator, ms
-  private final static int EL_TIMEOUT = Functions.DELAYTIME * 2 + 100; // Timeout for the update from coordinator, ms
+  private final static int EL_TIMEOUT = Functions.DELAYTIME * 2 + 100;             // Timeout for the update from coordinator, ms
   private final static int EL_COORDINATOR_TIMEOUT = Functions.DELAYTIME * 2 + 100; // Timeout for the update from
                                                                                    // coordinator, ms
+  private final static int RESTART_REPLICA_HEARTBEAT_PERIOD = 5000;
+  
   // coordinator timeouts
-  private final static int COORDINATOR_HEARTBEAT_PERIOD = 1000; // Time of the timeout for telling the replicas that the
-                                                                // coordinator is alive
-  private final static int COORDINATOR_HEARTBEAT_TIMEOUT = Functions.DELAYTIME + 100; // Time of the timeout for the
+  private final static int COORDINATOR_HEARTBEAT_PERIOD = 1000;                       // Time of the timeout for telling the replicas that the
+                                                                                      // coordinator is alive
+  private final static int COORDINATOR_HEARTBEAT_TIMEOUT = Functions.DELAYTIME + 500; // Time of the timeout for the
                                                                                       // response of the replicas
 
   // cancellable timeouts
-  private static Cancellable cReplicaHeartbeatTimeout;
+  private Cancellable cReplicaHeartbeatPeriod;
 
   // used to start the hearbeat period timeout
   private boolean firstHeartbeatReceived;
@@ -57,7 +59,7 @@ public class Replica extends AbstractActor {
 
   // counters for timeouts
   private final Map<Map<ActorRef, Integer>, Boolean> membersUpdRcvd;
-  private final Map<Map<Integer, Integer>, Boolean> AckRcvd;
+  private final Map<EpochSeqno, Boolean> AckRcvd;
 
   // coordinator counters for acknowledgement received
   private final Map<EpochSeqno, Integer> epochSeqnoAckCounter;
@@ -65,7 +67,7 @@ public class Replica extends AbstractActor {
 
   // list of epoch and sequence number related to the value communicated from the
   // coordinator
-  private final Map<Map<Integer, Integer>, Integer> epochSeqnoValue;
+  private final Map<EpochSeqno, Integer> epochSeqnoValue;
 
   // type of the next simulated crash
   public enum CrashType {
@@ -160,9 +162,10 @@ public class Replica extends AbstractActor {
       if (nextCrash == CrashType.WhileSendingUpdate) {
         Random rnd = new Random();
         int omittedReplicaIndex = rnd.nextInt(replicas.size());
+        seqno++;
         for (int i = 0; i < replicas.size(); i++) {
           if (i != omittedReplicaIndex) {
-            Functions.tellDelay(new UpdRqMsg(msg.c_snd, epoch, ++seqno, msg.op_cnt, msg.new_value), getSelf(),
+            Functions.tellDelay(new UpdRqMsg(msg.c_snd, epoch, seqno, msg.op_cnt, msg.new_value), getSelf(),
                 replicas.get(i));
           }
         }
@@ -174,9 +177,9 @@ public class Replica extends AbstractActor {
   }
 
   protected void onUpdRqMsg(UpdRqMsg msg) {
-    logger.info("{} received UPDATE message from coordinator with value {} of epoch {} and seqno {}",
+    logger.debug("{} received UPDATE message from coordinator with value {} of epoch {} and seqno {}",
         Functions.getName(getSelf()), msg.value, msg.epoch, msg.seqno);
-    Map<Integer, Integer> epochSeqno = Map.of(msg.epoch, msg.seqno);
+    EpochSeqno epochSeqno = new EpochSeqno(msg.epoch, msg.seqno);
     epochSeqnoValue.put(epochSeqno, msg.value);
 
     Map<ActorRef, Integer> m = Map.of(msg.sender, msg.op_cnt);
@@ -195,7 +198,7 @@ public class Replica extends AbstractActor {
   protected void onWrOk(WrOk msg) {
     this.epoch = msg.epoch;
     this.seqno = msg.seqno;
-    Map<Integer, Integer> epochSeqno = Map.of(msg.epoch, msg.seqno);
+    EpochSeqno epochSeqno = new EpochSeqno(msg.epoch, msg.seqno);
     value = epochSeqnoValue.get(epochSeqno);
     AckRcvd.put(epochSeqno, true);
 
@@ -214,7 +217,7 @@ public class Replica extends AbstractActor {
   }
 
   protected void onAckTimeout(AckTimeout msg) {
-    Map<Integer, Integer> epochSeqno = Map.of(msg.epoch, msg.seqno);
+    EpochSeqno epochSeqno = new EpochSeqno(msg.epoch, msg.seqno);
     if (!AckRcvd.getOrDefault(epochSeqno, false)) {
       logger.error("Replica {} did not receive write acknowledgment in time. Coordinator might have crashed.",
           Functions.getId(getSelf()));
@@ -227,8 +230,9 @@ public class Replica extends AbstractActor {
   protected void onCoordinatorHeartbeatMsg(CoordinatorHeartbeatMsg msg) {
     if (!firstHeartbeatReceived) {
       firstHeartbeatReceived = true;
-      cReplicaHeartbeatTimeout = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_TIMEOUT, getSelf(),
+      cReplicaHeartbeatPeriod = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_PERIOD, getSelf(),
           new HeartbeatPeriod());
+      logger.debug("Heartbeat period {}: Created first", Functions.getName(getSelf()));
     }
 
     logger.debug("{} received a heartbeat message from the coordinator", Functions.getName(getSelf()));
@@ -239,7 +243,7 @@ public class Replica extends AbstractActor {
   }
 
   protected void onHeartbeatPeriod(HeartbeatPeriod msg) {
-    logger.debug("Replica {} Hearbeat Period reached", Functions.getName(getSelf()));
+    logger.debug("{} Heartbeat Period reached", Functions.getName(getSelf()));
     if (!heartbeatReceived) {
       logger.error("{} did not heartbeat in time. Coordinator ({}) might have crashed.", Functions.getName(getSelf()),
           Functions.getName(coordinator));
@@ -248,8 +252,9 @@ public class Replica extends AbstractActor {
       coordinatorCrashRecovery(coordinator, candidates);
     }
     heartbeatReceived = false;
-    cReplicaHeartbeatTimeout = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_TIMEOUT, getSelf(),
+    cReplicaHeartbeatPeriod = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_PERIOD, getSelf(),
         new HeartbeatPeriod());
+    logger.debug("heartbeat period {}: created new one", Functions.getName(getSelf()));
   }
 
   private void onJoinGroupMsg(JoinGroupMsg msg) {
@@ -260,19 +265,21 @@ public class Replica extends AbstractActor {
   private void coordinatorCrashRecovery(ActorRef crashed_c, Map<ActorRef, EpochSeqno> candidates) {
     replicas.remove(crashed_c);
 
-    if (cReplicaHeartbeatTimeout != null)
-      cReplicaHeartbeatTimeout.cancel();
+    if (!cReplicaHeartbeatPeriod.isCancelled())
+    {
+      cReplicaHeartbeatPeriod.cancel();
+      logger.debug("Heartbeat period {}: stopped", Functions.getName(getSelf()));
+    }
     // if (cUpdateTimeout != null)
     // cUpdateTimeout.cancel();
     // if (cWriteOkTimeout != null)
     // cWriteOkTimeout.cancel();
-
     int selfIndex = replicas.indexOf(getSelf());
     int nextIndex = (selfIndex + 1) % replicas.size();
 
     EpochSeqno actorEpochSeqno = new EpochSeqno(epoch, seqno);
     candidates.put(getSelf(), actorEpochSeqno);
-    logger.info("{} sending an election message to {}, {} was removed", Functions.getName(getSelf()),
+    logger.debug("{} sending an election message to {}, {} was removed", Functions.getName(getSelf()),
         Functions.getName(replicas.get(nextIndex)), Functions.getName(coordinator));
     Functions.tellDelay(new ElectionMsg(crashed_c, candidates), getSelf(), replicas.get(nextIndex));
     Functions.setTimeout(getContext(), EL_TIMEOUT, getSelf(),
@@ -316,7 +323,7 @@ public class Replica extends AbstractActor {
       }
     }
 
-    if (coordinator == getSelf()) {
+    if (coordinator == getSelf() && !iscoordinator) {
       iscoordinator = true;
       epoch++;
       seqno = 0;
@@ -330,17 +337,18 @@ public class Replica extends AbstractActor {
       logger.info("{} [e: {}, sn: {}]: the new coordinator is {}, replica-size {}", Functions.getName(getSelf()), epoch,
           seqno, Functions.getName(coordinator), replicas.size());
     }
-    if (cReplicaHeartbeatTimeout == null)
-      cReplicaHeartbeatTimeout = Functions.setTimeout(getContext(), REPLICA_HEARTBEAT_TIMEOUT, getSelf(),
-          new HeartbeatPeriod());
 
     int selfIndex = replicas.indexOf(getSelf());
     int nextIndex = (selfIndex + 1) % replicas.size();
-    logger.info("{} sending coordinator message to {}", Functions.getName(getSelf()),
+    logger.debug("{} sending coordinator message to {}", Functions.getName(getSelf()),
         Functions.getName(replicas.get(nextIndex)));
     Functions.tellDelay(new CoordinatorMsg(candidates), getSelf(), replicas.get(nextIndex));
     Functions.setTimeout(getContext(), EL_COORDINATOR_TIMEOUT, getSelf(),
         new CoordinatorAckTimeout(replicas.get(nextIndex), candidates));
+    if(cReplicaHeartbeatPeriod.isCancelled())
+      cReplicaHeartbeatPeriod = Functions.setTimeout(getContext(), RESTART_REPLICA_HEARTBEAT_PERIOD, getSelf(),
+        new HeartbeatPeriod());
+    logger.debug("Heartbeat period {}: created new one", Functions.getName(getSelf()));
     // replicas.get(nextIndex).tell(new CoordinatorMsg(candidates), getSelf());
   }
 
@@ -349,7 +357,7 @@ public class Replica extends AbstractActor {
       crash();
       return;
     }
-    logger.info("{} receiving an election message from {}", Functions.getName(getSelf()),
+    logger.debug("{} receiving an election message from {}", Functions.getName(getSelf()),
         Functions.getName(getSender()));
     Functions.tellDelay(new ElectionMsgAck(), getSelf(), getSender());
     if (msg.coordinatorCandidates.containsKey(getSelf())) {
@@ -395,7 +403,7 @@ public class Replica extends AbstractActor {
 
       int selfIndex = replicas.indexOf(getSelf());
       int nextIndex = (selfIndex + 1) % replicas.size();
-      logger.info("{} sending an election message to {}, {} was removed", Functions.getName(getSelf()),
+      logger.debug("{} sending an election message to {}, {} was removed", Functions.getName(getSelf()),
           Functions.getName(replicas.get(nextIndex)), Functions.getName(coordinator));
       Functions.tellDelay(new ElectionMsg(msg.crashed_c, msg.coordinatorCandidates), getSelf(),
           replicas.get(nextIndex));
@@ -415,7 +423,7 @@ public class Replica extends AbstractActor {
 
       int selfIndex = replicas.indexOf(getSelf());
       int nextIndex = (selfIndex + 1) % replicas.size();
-      logger.info("{} sending coordinator message to {}", Functions.getName(getSelf()),
+      logger.debug("{} sending coordinator message to {}", Functions.getName(getSelf()),
           Functions.getName(replicas.get(nextIndex)));
       Functions.tellDelay(new CoordinatorMsg(msg.coordinatorCandidates), getSelf(), replicas.get(nextIndex));
       Functions.setTimeout(getContext(), EL_COORDINATOR_TIMEOUT, getSelf(),
@@ -446,7 +454,7 @@ public class Replica extends AbstractActor {
       Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_PERIOD, getSelf(), new CoordinatorHeartbeatPeriod());
       CoordinatorHeartbeatMsg confAlive = new CoordinatorHeartbeatMsg();
       Functions.multicast(confAlive, replicas, getSelf());
-      Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_TIMEOUT, getSelf(), new HeartbeatTimeout());
+      Functions.setTimeout(getContext(), COORDINATOR_HEARTBEAT_TIMEOUT, getSelf(), new CoordinatorHeartbeatTimeout());
     }
   }
 
@@ -457,7 +465,7 @@ public class Replica extends AbstractActor {
     }
   }
 
-  public void onHeartbeatTimeout(HeartbeatTimeout msg) {
+  public void onCoordinatorHeartbeatTimeout(CoordinatorHeartbeatTimeout msg) {
     if (iscoordinator) {
       if (replicas.size() != replicasAlive.size()) {
         logger.warn("replicas did not respond. Initiating failure handling.");
@@ -469,7 +477,7 @@ public class Replica extends AbstractActor {
             logger.warn("{} is dead", Functions.getName(r));
           }
           else
-            logger.warn("{} is alive", Functions.getName(r));
+            logger.debug("{} is alive", Functions.getName(r));
         }
         replicas.removeAll(deadReplicas);
 
@@ -486,20 +494,20 @@ public class Replica extends AbstractActor {
       EpochSeqno es = new EpochSeqno(msg.epoch, msg.seqno);
       int counter = epochSeqnoAckCounter.getOrDefault(es, 0) + 1;
       epochSeqnoAckCounter.put(es, counter);
-      logger.info("{} received {} ack(s) from {} of epoch {} seqno {}", Functions.getName(getSelf()),
+      logger.debug("{} received {} ack(s) from {} of epoch {} seqno {}", Functions.getName(getSelf()),
           epochSeqnoAckCounter.get(es),
           Functions.getName(getSender()), msg.epoch, msg.seqno);
       int Q = (replicas.size() / 2) + 1;
 
       if (epochSeqnoAckCounter.get(es) >= Q && epochSeqnoConfirmUpdate.getOrDefault(es, true)) {
-        logger.info("{} confirm the update to all the replica", Functions.getName(getSelf()));
+        logger.debug("{} confirm the update to all the replica", Functions.getName(getSelf()));
         if (nextCrash == CrashType.WhileSendingWriteOk) {
-          Random rnd = new Random();
-          int omittedReplicaIndex = rnd.nextInt(replicas.size() - 1);
-          for (int i = 0; i < replicas.size() - 1; i++) {
-            if (i != omittedReplicaIndex) {
+          //Random rnd = new Random();
+          //int omittedReplicaIndex = rnd.nextInt(replicas.size() - 1);
+          for (int i = 0; i < replicas.size() - 2; i++) {
+            //if (i != omittedReplicaIndex) {
               replicas.get(i).tell(new WrOk(msg.epoch, msg.seqno, getSelf()), getSelf());
-            }
+            //}
           }
           crash();
         } else {
@@ -534,7 +542,7 @@ public class Replica extends AbstractActor {
         .match(CoordinatorHeartbeatPeriod.class, this::onCoordinatorHeartbeatPeriod)
         .match(HeartbeatMsg.class, this::onHeartbeatMsg)
         .match(AckMsg.class, this::onAck)
-        .match(HeartbeatTimeout.class, this::onHeartbeatTimeout)
+        .match(CoordinatorHeartbeatTimeout.class, this::onCoordinatorHeartbeatTimeout)
         .match(ElectionMsg.class, this::onElectionMsg)
         .match(ElectionMsgAck.class, this::onElectionMsgAck)
         .match(ElectionAckTimeout.class, this::onElectionAckTimeout)

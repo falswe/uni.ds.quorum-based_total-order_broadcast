@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.io.IOException;
 
 public class QuorumBasedTotalOrderBroadcast {
-  final static int N_REPLICAS = 10;
+  final static int N_REPLICAS = 9;
   final static int N_CLIENTS = 4;
 
   // needed for our logging framework
@@ -65,28 +65,40 @@ public class QuorumBasedTotalOrderBroadcast {
 
     inputContinue();
 
+    //replicas Alive = 8 (0,1,2,3,4,5,6,7) [0 coordinator]
+
     logger.info("Crashing Replica 0 (coordinator)");
     replicas.get(0).tell(new CrashMsg(CrashType.NotResponding), ActorRef.noSender());
 
+    //replica Alive = 8 (1,2,3,4,5,6,7,8) [8 coordinator]
+
     inputContinue();
+
+    //replica Alive = 8 (1,2,3,4,5,6,7,8) [8 coordinator]
 
     logger.info("Calling a Write Request from client 0");
     clients.get(0).tell(new ClientWrite(3), ActorRef.noSender());
-    logger.info("Crashing Replica 9 (coordinator) while sending Update");
-    replicas.get(9).tell(new CrashMsg(CrashType.WhileSendingUpdate), ActorRef.noSender());
+    logger.info("Crashing Replica 8 (coordinator) while sending Update");
+    replicas.get(8).tell(new CrashMsg(CrashType.WhileSendingUpdate), ActorRef.noSender());
     logger.info("Crashing Replica 2 during the election phase");
     replicas.get(2).tell(new CrashMsg(CrashType.WhileElection), ActorRef.noSender());
 
+    //replica Alive = 6 (1,3,4,5,6,7) [7 coordinator]
+
     inputContinue();
+
+    //replica Alive = 6 (1,3,4,5,6,7) [7 coordinator]
 
     logger.info("Calling a Write Request from client 2");
     clients.get(2).tell(new ClientWrite(1), ActorRef.noSender());
     logger.info("Crashing Replica 1 after receiving Update");
     replicas.get(1).tell(new CrashMsg(CrashType.AfterReceivingUpdate), ActorRef.noSender());
-    logger.info("Crashing Replica 8 (coordinator) while sending Write Ok");
-    replicas.get(8).tell(new CrashMsg(CrashType.WhileSendingWriteOk), ActorRef.noSender());
+    logger.info("Crashing Replica 7 (coordinator) while sending Write Ok");
+    replicas.get(7).tell(new CrashMsg(CrashType.WhileSendingWriteOk), ActorRef.noSender());
     logger.info("Crashing Replica 3 while choosing the Coordinator");
     replicas.get(3).tell(new CrashMsg(CrashType.WhileChoosingCoordinator), ActorRef.noSender());
+
+    //replica Alive = 3 (4,5,6) [4 coordinator]
 
     inputContinue();
   }
