@@ -3,7 +3,7 @@
     <!-- Console Appender -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level %replace(%replace(%logger){'it\.unitn\.ds1\.actors\.',''}){'it.unitn.ds1.QuorumBasedTotalOrderBroadcast','QBTOB'}\t%msg%n</pattern>        </encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %-7replace(%replace(%logger){'it\.unitn\.ds1\.actors\.',''}){'it.unitn.ds1.QuorumBasedTotalOrderBroadcast','QBTOB'} %msg%n</pattern>        </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>INFO</level>
         </filter>
@@ -19,7 +19,7 @@
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %15replace(%logger){'it\.unitn\.ds1\.actors\.',''}\t%msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %-7replace(%replace(%logger){'it\.unitn\.ds1\.actors\.',''}){'it.unitn.ds1.QuorumBasedTotalOrderBroadcast','QBTOB'} %msg%n</pattern>
         </encoder>
     </appender>
 

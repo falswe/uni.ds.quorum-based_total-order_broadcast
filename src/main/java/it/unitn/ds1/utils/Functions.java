@@ -1,20 +1,27 @@
 package it.unitn.ds1.utils;
 
+import akka.actor.ActorContext;
+import akka.actor.ActorRef;
+import akka.actor.Cancellable;
+
 import java.io.Serializable;
-import java.util.concurrent.TimeUnit;
-
-import akka.actor.*;
-import scala.concurrent.duration.Duration;
-
-import java.util.Objects;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
-public class Functions {
+import scala.concurrent.duration.Duration;
 
-  public final static int DELAYTIME = 100;
+public final class Functions {
+  public static final int DELAY_TIME = 100;
+
+  private static final Random random = new Random();
+  private static final Pattern ACTOR_NAME_PATTERN = Pattern.compile("(client|replica)(\\d+)");
+
+  private Functions() {
+    // Private constructor to prevent instantiation
+  }
 
   public static class EpochSeqno {
     public final int epoch;
@@ -27,60 +34,52 @@ public class Functions {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        EpochSeqno that = (EpochSeqno) o;
-        return epoch == that.epoch && seqno == that.seqno;
+      if (this == o)
+        return true;
+      if (o == null || getClass() != o.getClass())
+        return false;
+      EpochSeqno that = (EpochSeqno) o;
+      return epoch == that.epoch && seqno == that.seqno;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(epoch, seqno);
+      return Objects.hash(epoch, seqno);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("EpochSeqno(epoch=%d, seqno=%d)", epoch, seqno);
     }
   }
 
-  /**
-   * This function send a message m to the actor when the time specified ends.
-   * 
-   * @param context
-   * @param time
-   * @param actor   The actor that will be the sender and receiver of the Timeout
-   *                Message
-   * @param m       The message that will be sent
-   */
-  public static Cancellable setTimeout(ActorContext context, int time, ActorRef actor, Serializable m) {
+  public static Cancellable setTimeout(ActorContext context, int timeInMillis, ActorRef actor, Serializable message) {
     return context.system().scheduler().scheduleOnce(
-        Duration.create(time, TimeUnit.MILLISECONDS),
+        Duration.create(timeInMillis, "milliseconds"),
         actor,
-        m,
-        context.system().dispatcher(), actor);
+        message,
+        context.system().dispatcher(),
+        actor);
   }
 
-  public static void tellDelay(Serializable m, ActorRef sender, ActorRef receiver) {
-    Random rnd = new Random();
-    // ActorContext context = getContext();
-
-    // context.system().scheduler().scheduleOnce(
-    //     Duration.create(rnd.nextInt(DELAYTIME), TimeUnit.MILLISECONDS),
-    //     receiver,
-    //     m,
-    //     context.system().dispatcher(), sender);
-
-    try {Thread.sleep(rnd.nextInt(DELAYTIME));} catch (Exception ignored) {}
-    receiver.tell(m, sender);
+  public static void tellDelay(Serializable message, ActorRef sender, ActorRef receiver) {
+    int delay = random.nextInt(DELAY_TIME);
+    try {
+      Thread.sleep(delay);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+    receiver.tell(message, sender);
   }
 
-  public static void multicast(Serializable m, List<ActorRef> receivers, ActorRef sender) {
-    for (ActorRef r : receivers) {
-      r.tell(m, sender);
+  public static void multicast(Serializable message, List<ActorRef> receivers, ActorRef sender) {
+    for (ActorRef receiver : receivers) {
+      receiver.tell(message, sender);
     }
   }
 
-  // Extracts the ID out of a string like
-  // Actor[akka://Quorum-based-Total-Order-Broadcast/user/client0#-293215613]
   public static int getId(ActorRef actor) {
-    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
-    Matcher matcher = regex.matcher(actor.toString());
+    Matcher matcher = ACTOR_NAME_PATTERN.matcher(actor.toString());
     if (matcher.find()) {
       return Integer.parseInt(matcher.group(2));
     }
@@ -88,11 +87,10 @@ public class Functions {
   }
 
   public static String getName(ActorRef actor) {
-    Pattern regex = Pattern.compile("(client|replica)(\\d+)");
-    Matcher matcher = regex.matcher(actor.toString());
+    Matcher matcher = ACTOR_NAME_PATTERN.matcher(actor.toString());
     if (matcher.find()) {
       return matcher.group(1) + " " + matcher.group(2);
     }
-    return null; // Return null or handle the case when no match is found
+    return null;
   }
 }
