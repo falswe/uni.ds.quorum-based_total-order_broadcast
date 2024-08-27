@@ -240,41 +240,44 @@ public class Replica extends AbstractActor {
   }
 
   private void electCoordinator(Map<ActorRef, EpochSeqno> candidates) {
-    int maxEpoch = epoch;
-    int maxSeqno = seqno;
-    int maxId = 0;
-
+    ActorRef bestActor = getSelf();
+    EpochSeqno bestEpochSeqno = new EpochSeqno(epoch, seqno);
     boolean incompleteBroadcast = false;
 
     for (Map.Entry<ActorRef, EpochSeqno> entry : candidates.entrySet()) {
       ActorRef actor = entry.getKey();
       EpochSeqno epochSeqno = entry.getValue();
 
-      if (epochSeqno.epoch > maxEpoch ||
-          (epochSeqno.epoch == maxEpoch && epochSeqno.seqno > maxSeqno) ||
-          (epochSeqno.epoch == maxEpoch && epochSeqno.seqno == maxSeqno && Functions.getId(actor) > maxId)) {
-        coordinator = actor;
-        maxEpoch = epochSeqno.epoch;
-        maxSeqno = epochSeqno.seqno;
-        maxId = Functions.getId(actor);
-        incompleteBroadcast = true;
-      } else if (epochSeqno.epoch < maxEpoch ||
-          (epochSeqno.epoch == maxEpoch && epochSeqno.seqno < maxSeqno)) {
+      if (isPreferredCandidate(epochSeqno, bestEpochSeqno, actor, bestActor)) {
+        bestActor = actor;
+        bestEpochSeqno = epochSeqno;
+      }
+
+      if (epochSeqno.epoch != bestEpochSeqno.epoch ||
+          epochSeqno.seqno != bestEpochSeqno.seqno) {
         incompleteBroadcast = true;
       }
     }
 
+    coordinator = bestActor;
+
     if (coordinator == getSelf() && !isCoordinator) {
       becomeCoordinator(incompleteBroadcast);
     } else {
-      logger.info("{} [e: {}, sn: {}]: the new coordinator is {}, replica-size {}", Functions.getName(getSelf()), epoch,
-          seqno, Functions.getName(coordinator), replicas.size());
+      logger.info("{} [e: {}, sn: {}]: the new coordinator is {}, replica-size {}",
+          Functions.getName(getSelf()), epoch, seqno, Functions.getName(coordinator), replicas.size());
     }
 
     sendCoordinatorMessage(candidates);
-    if (replicaHeartbeatPeriod.isCancelled())
-      replicaHeartbeatPeriod = Functions.setTimeout(getContext(), RESTART_REPLICA_HEARTBEAT_PERIOD, getSelf(),
-          new Messages.HeartbeatPeriod());
+    resetHeartbeatTimeout();
+  }
+
+  private boolean isPreferredCandidate(EpochSeqno candidate, EpochSeqno current,
+      ActorRef candidateActor, ActorRef currentActor) {
+    return candidate.epoch > current.epoch ||
+        (candidate.epoch == current.epoch && candidate.seqno > current.seqno) ||
+        (candidate.epoch == current.epoch && candidate.seqno == current.seqno &&
+            Functions.getId(candidateActor) > Functions.getId(currentActor));
   }
 
   private void becomeCoordinator(boolean incompleteBroadcast) {
@@ -282,11 +285,20 @@ public class Replica extends AbstractActor {
     epoch++;
     seqno = 0;
     onCoordinatorHeartbeatPeriod(new Messages.CoordinatorHeartbeatPeriod());
-    logger.info("{} [e: {}, sn: {}]: the new coordinator is me, replica-size {}", Functions.getName(getSelf()), epoch,
-        seqno, replicas.size());
+    logger.info("{} [e: {}, sn: {}]: the new coordinator is me, replica-size {}",
+        Functions.getName(getSelf()), epoch, seqno, replicas.size());
 
-    if (incompleteBroadcast)
-      Functions.multicast(new Messages.UpdRqMsg(getSelf(), epoch, ++seqno, 0, value), replicas, getSelf());
+    if (incompleteBroadcast) {
+      Functions.multicast(new Messages.UpdRqMsg(getSelf(), epoch, ++seqno, 0, value),
+          replicas, getSelf());
+    }
+  }
+
+  private void resetHeartbeatTimeout() {
+    if (replicaHeartbeatPeriod == null || replicaHeartbeatPeriod.isCancelled()) {
+      replicaHeartbeatPeriod = Functions.setTimeout(getContext(), RESTART_REPLICA_HEARTBEAT_PERIOD,
+          getSelf(), new Messages.HeartbeatPeriod());
+    }
   }
 
   private void sendCoordinatorMessage(Map<ActorRef, EpochSeqno> candidates) {
