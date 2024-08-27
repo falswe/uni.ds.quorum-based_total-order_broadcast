@@ -21,6 +21,7 @@ public class Replica extends AbstractActor {
   private static final int UPDATE_TIMEOUT = 1000;
   private static final int WRITE_OK_TIMEOUT = 1000;
   private static final int REPLICA_HEARTBEAT_PERIOD = Functions.DELAY_TIME + 2000;
+  private static final int RESTART_REPLICA_HEARTBEAT_PERIOD = 5000;
   private static final int ELECTION_TIMEOUT = Functions.DELAY_TIME * 2 + 100;
   private static final int COORDINATOR_ELECTION_TIMEOUT = Functions.DELAY_TIME * 2 + 100;
   private static final int COORDINATOR_HEARTBEAT_PERIOD = 1000;
@@ -271,6 +272,9 @@ public class Replica extends AbstractActor {
     }
 
     sendCoordinatorMessage(candidates);
+    if (replicaHeartbeatPeriod.isCancelled())
+      replicaHeartbeatPeriod = Functions.setTimeout(getContext(), RESTART_REPLICA_HEARTBEAT_PERIOD, getSelf(),
+          new Messages.HeartbeatPeriod());
   }
 
   private void becomeCoordinator(boolean incompleteBroadcast) {

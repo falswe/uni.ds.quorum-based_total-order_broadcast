@@ -66,14 +66,22 @@ public class QuorumBasedTotalOrderBroadcast {
     waitForUserInput();
 
     // replicas Alive = 9 (0,1,2,3,4,5,6,7,8) [0 coordinator]
-    simulateCrashes(replicas, clients);
+    simulateCoordinatorCrash(replicas, clients);
     waitForUserInput();
 
-    // replica Alive = 7 (1,3,4,5,6,7,8) [8 coordinator]
-    simulateMoreCrashes(replicas, clients);
+    // replicas Alive = 8 (1,2,3,4,5,6,7,8) [8 coordinator]
+    simulateElectionCrashes(replicas, clients);
     waitForUserInput();
 
-    // replica Alive = 3 (4,5,6) [4 coordinator]
+    // replica Alive = 5 (1,4,5,6,7) [7 coordinator]
+    simulateUpdateCrash(replicas, clients);
+    waitForUserInput();
+
+    // replica Alive = 4 (1,4,5,6) [6 coordinator]
+    simulateWriteOkCrashes(replicas, clients);
+    waitForUserInput();
+
+    // replica Alive = 2 (4,5) [4 coordinator]
   }
 
   private static void simulateReadsAndWrites(List<ActorRef> clients) {
@@ -85,27 +93,37 @@ public class QuorumBasedTotalOrderBroadcast {
     clients.get(0).tell(new Messages.Client.Read(2), ActorRef.noSender());
   }
 
-  private static void simulateCrashes(List<ActorRef> replicas, List<ActorRef> clients) {
+  private static void simulateCoordinatorCrash(List<ActorRef> replicas, List<ActorRef> clients) {
     logger.info("Crashing Replica 0 (coordinator)");
     replicas.get(0).tell(new Messages.CrashMsg(Messages.CrashType.NotResponding), ActorRef.noSender());
-
-    logger.info("Calling a Write Request from client 0");
-    clients.get(0).tell(new Messages.Client.Write(3), ActorRef.noSender());
-    logger.info("Crashing Replica 8 (coordinator) while sending Update");
-    replicas.get(8).tell(new Messages.CrashMsg(Messages.CrashType.WhileSendingUpdate), ActorRef.noSender());
-    logger.info("Crashing Replica 2 during the election phase");
-    replicas.get(2).tell(new Messages.CrashMsg(Messages.CrashType.WhileElection), ActorRef.noSender());
   }
 
-  private static void simulateMoreCrashes(List<ActorRef> replicas, List<ActorRef> clients) {
-    logger.info("Calling a Write Request from client 2");
-    clients.get(2).tell(new Messages.Client.Write(1), ActorRef.noSender());
-    logger.info("Crashing Replica 1 after receiving Update");
-    replicas.get(1).tell(new Messages.CrashMsg(Messages.CrashType.AfterReceivingUpdate), ActorRef.noSender());
-    logger.info("Crashing Replica 7 (coordinator) while sending Write Ok");
-    replicas.get(7).tell(new Messages.CrashMsg(Messages.CrashType.WhileSendingWriteOk), ActorRef.noSender());
+  private static void simulateElectionCrashes(List<ActorRef> replicas, List<ActorRef> clients) {
+    logger.info("Crashing Replica 2 during the election phase");
+    replicas.get(2).tell(new Messages.CrashMsg(Messages.CrashType.WhileElection), ActorRef.noSender());
     logger.info("Crashing Replica 3 while choosing the Coordinator");
     replicas.get(3).tell(new Messages.CrashMsg(Messages.CrashType.WhileChoosingCoordinator), ActorRef.noSender());
+
+    logger.info("Crashing Replica 8 (coordinator)");
+    replicas.get(8).tell(new Messages.CrashMsg(Messages.CrashType.NotResponding), ActorRef.noSender());
+  }
+
+  private static void simulateUpdateCrash(List<ActorRef> replicas, List<ActorRef> clients) {
+    logger.info("Crashing Replica 7 (coordinator) while sending Update");
+    replicas.get(7).tell(new Messages.CrashMsg(Messages.CrashType.WhileSendingUpdate), ActorRef.noSender());
+
+    logger.info("Calling a Write Request from client 0");
+    clients.get(0).tell(new Messages.Client.Write(4), ActorRef.noSender());
+  }
+
+  private static void simulateWriteOkCrashes(List<ActorRef> replicas, List<ActorRef> clients) {
+    logger.info("Crashing Replica 1 after receiving Update");
+    replicas.get(1).tell(new Messages.CrashMsg(Messages.CrashType.AfterReceivingUpdate), ActorRef.noSender());
+    logger.info("Crashing Replica 6 (coordinator) while sending Write Ok");
+    replicas.get(6).tell(new Messages.CrashMsg(Messages.CrashType.WhileSendingWriteOk), ActorRef.noSender());
+
+    logger.info("Calling a Write Request from client 2");
+    clients.get(2).tell(new Messages.Client.Write(1), ActorRef.noSender());
   }
 
   private static void waitForUserInput() {
