@@ -39,7 +39,6 @@ The project implements a protocol for coordinating a group of replicas sharing t
 ### Coordinator Election
 - Uses a ring-based protocol based on replica IDs.
 - The new coordinator is the replica that knows the most recent update.
-- Broadcasts a `SYNCHRONIZATION` message to synchronize all replicas before continuing the broadcast protocol.
 
 ### Properties
 - Ensures that if a replica applies an update, all correct replicas will apply the update.

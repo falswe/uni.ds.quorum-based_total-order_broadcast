@@ -59,11 +59,6 @@ tasks.withType(Javadoc) {
     }
 }
 
-// mainClassName = "it.unitn.ds1.causaldelivery.CausalDelivery"
-// mainClassName = "it.unitn.ds1.snapshotexercise.BankSystem"
-// mainClassName = "it.unitn.ds1.vsync.VirtualSynch"
-// mainClassName = "it.unitn.ds1.twophasecommit.TwoPhaseCommit"
-// mainClassName = "it.unitn.ds1.Main"
 mainClassName = "it.unitn.ds1.QBTOB"
 
 run {

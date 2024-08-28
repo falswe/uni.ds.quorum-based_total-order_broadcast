@@ -57,7 +57,7 @@ public class Client extends AbstractActor {
     int newValue = ThreadLocalRandom.current().nextInt(MAX_RANDOM_VALUE);
     logger.info("Client {} write req to Replica {} with value {}",
         Helper.getId(getSelf()),
-        Helper.getName(replicas.get(replicaId)),
+        Helper.getId(replicas.get(replicaId)),
         newValue);
 
     Message.Client.WriteRequest writeRequest = new Message.Client.WriteRequest(getSelf(), ++operationCount, newValue);
