@@ -49,13 +49,13 @@ public class Client extends AbstractActor {
   }
 
   private void sendReadRequest(int replicaId) {
-    logger.info("Client {} sending read request to replica {}", Helper.getId(getSelf()), replicaId);
+    logger.info("Client {} read req to Replica {}", Helper.getId(getSelf()), replicaId);
     Helper.tellDelay(new Message.Client.ReadRequest(), getSelf(), replicas.get(replicaId));
   }
 
   private void sendWriteRequest(int replicaId) {
     int newValue = ThreadLocalRandom.current().nextInt(MAX_RANDOM_VALUE);
-    logger.info("Client {} sending write request to replica {} with value {}",
+    logger.info("Client {} write req to Replica {} with value {}",
         Helper.getId(getSelf()),
         Helper.getName(replicas.get(replicaId)),
         newValue);

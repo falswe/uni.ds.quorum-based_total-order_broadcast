@@ -87,7 +87,8 @@ public class QBTOB {
   }
 
   private static void simulateReadsAndWrites(List<ActorRef> clients) {
-    logger.info("Initiating read and write operations");    clients.get(2).tell(new Message.Client.Read(1), ActorRef.noSender());
+    logger.info("Initiating read and write operations");
+    clients.get(2).tell(new Message.Client.Read(1), ActorRef.noSender());
     clients.get(1).tell(new Message.Client.Read(0), ActorRef.noSender());
     clients.get(2).tell(new Message.Client.Write(2), ActorRef.noSender());
     clients.get(3).tell(new Message.Client.Write(3), ActorRef.noSender());
@@ -124,7 +125,7 @@ public class QBTOB {
     replicas.get(6).tell(new Message.System.Crash(CrashType.WHILE_SENDING_WRITE_OK), ActorRef.noSender());
 
     logger.info("Calling a Write Request from Client 2");
-    clients.get(2).tell(new Message.Client.Write(4), ActorRef.noSender());
+    clients.get(2).tell(new Message.Client.Write(1), ActorRef.noSender());
   }
 
   private static void waitForUserInput() {
