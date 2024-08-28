@@ -6,72 +6,71 @@ import akka.actor.Props;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import it.unitn.ds1.utils.Messages;
-import it.unitn.ds1.utils.Functions;
+import it.unitn.ds1.utils.Message;
+import it.unitn.ds1.utils.Helper;
 
 public class Client extends AbstractActor {
+
   private static final Logger logger = LoggerFactory.getLogger(Client.class);
-  private static final int MAX_VALUE = 100;
+  private static final int MAX_RANDOM_VALUE = 100;
 
   private int operationCount;
   private final List<ActorRef> replicas;
-  private final Random random;
 
   public Client() {
     this.replicas = new ArrayList<>();
     this.operationCount = 0;
-    this.random = new Random();
   }
 
-  static public Props props() {
+  public static Props props() {
     return Props.create(Client.class, Client::new);
   }
 
-  private void onClientRead(Messages.Client.Read msg) {
+  private void onRead(Message.Client.Read msg) {
     sendReadRequest(msg.replicaId);
   }
 
-  private void onClientWrite(Messages.Client.Write msg) {
+  private void onWrite(Message.Client.Write msg) {
     sendWriteRequest(msg.replicaId);
   }
 
-  private void onReadResponse(Messages.RdRspMsg msg) {
-    logger.info("Client {} read value: {}", Functions.getId(getSelf()), msg.value);
+  private void onReadResponse(Message.Replica.ReadResponse msg) {
+    logger.info("Client {} read done {}", Helper.getId(getSelf()), msg.value);
   }
 
-  private void onJoinGroup(Messages.JoinGroupMsg msg) {
+  private void onJoinGroup(Message.System.JoinGroup msg) {
     replicas.addAll(msg.group);
-    logger.info("Client {} joined group with {} replicas", Functions.getId(getSelf()), replicas.size());
+    logger.debug("Client {} joined group with {} replicas", Helper.getId(getSelf()), replicas.size());
   }
 
   private void sendReadRequest(int replicaId) {
-    logger.debug("Client {} sending read request to replica {}", Functions.getId(getSelf()), replicaId);
-    Functions.tellDelay(new Messages.RdRqMsg(), getSelf(), replicas.get(replicaId));
+    logger.info("Client {} sending read request to replica {}", Helper.getId(getSelf()), replicaId);
+    Helper.tellDelay(new Message.Client.ReadRequest(), getSelf(), replicas.get(replicaId));
   }
 
   private void sendWriteRequest(int replicaId) {
-    int newValue = random.nextInt(MAX_VALUE);
-    logger.debug("Client {} sending write request to {} with value {}",
-        Functions.getId(getSelf()),
-        Functions.getName(replicas.get(replicaId)),
+    int newValue = ThreadLocalRandom.current().nextInt(MAX_RANDOM_VALUE);
+    logger.info("Client {} sending write request to replica {} with value {}",
+        Helper.getId(getSelf()),
+        Helper.getName(replicas.get(replicaId)),
         newValue);
 
-    Functions.tellDelay(new Messages.WrRqMsg(getSelf(), ++operationCount, newValue), getSelf(),
-        replicas.get(replicaId));
+    Message.Client.WriteRequest writeRequest = new Message.Client.WriteRequest(getSelf(), ++operationCount, newValue);
+    Helper.tellDelay(writeRequest, getSelf(), replicas.get(replicaId));
   }
 
   @Override
   public Receive createReceive() {
     return receiveBuilder()
-        .match(Messages.Client.Read.class, this::onClientRead)
-        .match(Messages.Client.Write.class, this::onClientWrite)
-        .match(Messages.RdRspMsg.class, this::onReadResponse)
-        .match(Messages.JoinGroupMsg.class, this::onJoinGroup)
+        .match(Message.Client.Read.class, this::onRead)
+        .match(Message.Client.Write.class, this::onWrite)
+        .match(Message.Replica.ReadResponse.class, this::onReadResponse)
+        .match(Message.System.JoinGroup.class, this::onJoinGroup)
         .build();
   }
 }

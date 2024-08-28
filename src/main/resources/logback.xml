@@ -5,7 +5,7 @@
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %-5level %-7replace(%replace(%logger){'it\.unitn\.ds1\.actors\.',''}){'it.unitn.ds1.QuorumBasedTotalOrderBroadcast','QBTOB'} %msg%n</pattern>        </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>INFO</level>
+            <level>DEBUG</level>
         </filter>
     </appender>
 

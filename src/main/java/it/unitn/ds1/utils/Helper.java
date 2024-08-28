@@ -7,27 +7,26 @@ import akka.actor.Cancellable;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 import scala.concurrent.duration.Duration;
 
-public final class Functions {
+public final class Helper {
   public static final int DELAY_TIME = 100;
 
-  private static final Random random = new Random();
-  private static final Pattern ACTOR_NAME_PATTERN = Pattern.compile("(client|replica)(\\d+)");
+  private static final Pattern ACTOR_NAME_PATTERN = Pattern.compile("(Client|Replica)(\\d+)");
 
-  private Functions() {
+  private Helper() {
     // Private constructor to prevent instantiation
   }
 
-  public static class EpochSeqno {
+  public static class TimeId {
     public final int epoch;
     public final int seqno;
 
-    public EpochSeqno(final int epoch, final int seqno) {
+    public TimeId(final int epoch, final int seqno) {
       this.epoch = epoch;
       this.seqno = seqno;
     }
@@ -38,7 +37,7 @@ public final class Functions {
         return true;
       if (o == null || getClass() != o.getClass())
         return false;
-      EpochSeqno that = (EpochSeqno) o;
+      TimeId that = (TimeId) o;
       return epoch == that.epoch && seqno == that.seqno;
     }
 
@@ -49,7 +48,7 @@ public final class Functions {
 
     @Override
     public String toString() {
-      return String.format("EpochSeqno(epoch=%d, seqno=%d)", epoch, seqno);
+      return String.format("TimeId(epoch=%d, seqno=%d)", epoch, seqno);
     }
   }
 
@@ -63,7 +62,7 @@ public final class Functions {
   }
 
   public static void tellDelay(Serializable message, ActorRef sender, ActorRef receiver) {
-    int delay = random.nextInt(DELAY_TIME);
+    int delay = ThreadLocalRandom.current().nextInt(DELAY_TIME);
     try {
       Thread.sleep(delay);
     } catch (InterruptedException e) {
