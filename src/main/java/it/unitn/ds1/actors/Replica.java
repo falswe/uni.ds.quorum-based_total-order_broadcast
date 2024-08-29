@@ -20,14 +20,14 @@ public class Replica extends AbstractActor {
   private static final Logger logger = LoggerFactory.getLogger(Replica.class);
 
   // Timeouts
+  private static final int HEARTBEAT_PERIOD = 1000;
+  private static final int HEARTBEAT_RESPONSE_TIMEOUT = 500;
+  private static final int HEARTBEAT_TIMEOUT = 2000;
+  private static final int RESTART_HEARTBEAT_TIMEOUT = 6000;
   private static final int UPDATE_TIMEOUT = 1000;
   private static final int WRITE_OK_TIMEOUT = 1000;
-  private static final int HEARTBEAT_TIMEOUT = Helper.DELAY_TIME + 2000;
-  private static final int RESTART_HEARTBEAT_TIMEOUT = 5000;
-  private static final int ELECTION_TIMEOUT = Helper.DELAY_TIME * 2 + 100;
-  private static final int SYNCHRONIZATION_TIMEOUT = Helper.DELAY_TIME * 2 + 100;
-  private static final int HEARTBEAT_PERIOD = 1000;
-  private static final int HEARTBEAT_RESPONSE_TIMEOUT = Helper.DELAY_TIME + 500;
+  private static final int ELECTION_TIMEOUT = 500;
+  private static final int SYNCHRONIZATION_TIMEOUT = 500;
 
   private int currentValue;
   private int epoch;
@@ -406,7 +406,8 @@ public class Replica extends AbstractActor {
   }
 
   private void onSynchronizationAck(Message.Replica.SynchronizationAck msg) {
-    logger.debug("Replica {} received synchronization ACK from {}", Helper.getId(getSelf()), Helper.getName(getSender()));
+    logger.debug("Replica {} received synchronization ACK from {}", Helper.getId(getSelf()),
+        Helper.getName(getSender()));
     int ackReceived = synchronizationAcksReceived.getOrDefault(getSender(), 0) + 1;
     synchronizationAcksReceived.put(getSender(), ackReceived);
   }
@@ -439,7 +440,8 @@ public class Replica extends AbstractActor {
   }
 
   private void onSynchronizationAckTimeout(Message.Replica.SynchronizationAckTimeout msg) {
-    logger.debug("Replica {} synchronization ACK timeout for {}", Helper.getId(getSelf()), Helper.getName(msg.nextReplica));
+    logger.debug("Replica {} synchronization ACK timeout for {}", Helper.getId(getSelf()),
+        Helper.getName(msg.nextReplica));
     if (synchronizationAcksReceived.getOrDefault(msg.nextReplica, 0) == 0) {
       handleMissingSynchronizationAck(msg);
     } else {
