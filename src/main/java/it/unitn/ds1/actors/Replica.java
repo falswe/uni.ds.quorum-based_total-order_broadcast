@@ -25,7 +25,7 @@ public class Replica extends AbstractActor {
   private static final int HEARTBEAT_TIMEOUT = Helper.DELAY_TIME + 2000;
   private static final int RESTART_HEARTBEAT_TIMEOUT = 5000;
   private static final int ELECTION_TIMEOUT = Helper.DELAY_TIME * 2 + 100;
-  private static final int COORDINATOR_TIMEOUT = Helper.DELAY_TIME * 2 + 100;
+  private static final int SYNCHRONIZATION_TIMEOUT = Helper.DELAY_TIME * 2 + 100;
   private static final int HEARTBEAT_PERIOD = 1000;
   private static final int HEARTBEAT_RESPONSE_TIMEOUT = Helper.DELAY_TIME + 500;
 
@@ -37,7 +37,7 @@ public class Replica extends AbstractActor {
   private boolean heartbeatReceived;
 
   private final Map<ActorRef, Integer> electionAcksReceived;
-  private final Map<ActorRef, Integer> electionCoordinatorAcksReceived;
+  private final Map<ActorRef, Integer> synchronizationAcksReceived;
 
   private ActorRef coordinator;
   private boolean isCoordinator;
@@ -64,7 +64,7 @@ public class Replica extends AbstractActor {
     this.firstHeartbeatReceived = false;
     this.heartbeatReceived = false;
     this.electionAcksReceived = new HashMap<>();
-    this.electionCoordinatorAcksReceived = new HashMap<>();
+    this.synchronizationAcksReceived = new HashMap<>();
     this.coordinator = getSelf();
     this.isCoordinator = true;
     this.replicas = new ArrayList<>();
@@ -327,7 +327,7 @@ public class Replica extends AbstractActor {
           Helper.getId(getSelf()), Helper.getId(coordinator), epoch, seqno, replicas.size());
     }
 
-    sendCoordinatorMessage(candidates);
+    sendSynchronizationMessage(candidates);
     resetHeartbeatTimeout();
   }
 
@@ -360,14 +360,14 @@ public class Replica extends AbstractActor {
     }
   }
 
-  private void sendCoordinatorMessage(Map<ActorRef, Helper.TimeId> candidates) {
+  private void sendSynchronizationMessage(Map<ActorRef, Helper.TimeId> candidates) {
     int selfIndex = replicas.indexOf(getSelf());
     int nextIndex = (selfIndex + 1) % replicas.size();
-    logger.debug("Replica {} sending coordinator message to Replica {}",
+    logger.debug("Replica {} sending synchronization message to Replica {}",
         Helper.getId(getSelf()), Helper.getId(replicas.get(nextIndex)));
-    Helper.tellDelay(new Message.Replica.Coordinator(candidates), getSelf(), replicas.get(nextIndex));
-    Helper.setTimeout(getContext(), COORDINATOR_TIMEOUT, getSelf(),
-        new Message.Replica.CoordinatorAckTimeout(replicas.get(nextIndex), candidates));
+    Helper.tellDelay(new Message.Replica.Synchronization(candidates), getSelf(), replicas.get(nextIndex));
+    Helper.setTimeout(getContext(), SYNCHRONIZATION_TIMEOUT, getSelf(),
+        new Message.Replica.SynchronizationAckTimeout(replicas.get(nextIndex), candidates));
   }
 
   private void onElection(Message.Replica.Election msg) {
@@ -392,23 +392,23 @@ public class Replica extends AbstractActor {
     electionAcksReceived.put(getSender(), acksReceived);
   }
 
-  private void onCoordinator(Message.Replica.Coordinator msg) {
-    logger.debug("Replica {} received coordinator message", Helper.getId(getSelf()));
+  private void onSynchronization(Message.Replica.Synchronization msg) {
+    logger.debug("Replica {} received synchronization message", Helper.getId(getSelf()));
     if (nextCrash == CrashType.WHILE_CHOOSING_COORDINATOR) {
       logger.warn("Replica {} crashing while choosing coordinator", Helper.getId(getSelf()));
       crash();
       return;
     }
-    Helper.tellDelay(new Message.Replica.CoordinatorAck(), getSelf(), getSender());
+    Helper.tellDelay(new Message.Replica.SynchronizationAck(), getSelf(), getSender());
     if (!replicas.contains(coordinator)) {
       electCoordinator(msg.coordinatorCandidates);
     }
   }
 
-  private void onCoordinatorAck(Message.Replica.CoordinatorAck msg) {
-    logger.debug("Replica {} received coordinator ACK from {}", Helper.getId(getSelf()), Helper.getName(getSender()));
-    int ackReceived = electionCoordinatorAcksReceived.getOrDefault(getSender(), 0) + 1;
-    electionCoordinatorAcksReceived.put(getSender(), ackReceived);
+  private void onSynchronizationAck(Message.Replica.SynchronizationAck msg) {
+    logger.debug("Replica {} received synchronization ACK from {}", Helper.getId(getSelf()), Helper.getName(getSender()));
+    int ackReceived = synchronizationAcksReceived.getOrDefault(getSender(), 0) + 1;
+    synchronizationAcksReceived.put(getSender(), ackReceived);
   }
 
   private void onElectionAckTimeout(Message.Replica.ElectionAckTimeout msg) {
@@ -438,30 +438,31 @@ public class Replica extends AbstractActor {
     electionAcksReceived.put(replica, ackReceived);
   }
 
-  private void onCoordinatorAckTimeout(Message.Replica.CoordinatorAckTimeout msg) {
-    logger.debug("Replica {} coordinator ACK timeout for {}", Helper.getId(getSelf()), Helper.getName(msg.nextReplica));
-    if (electionCoordinatorAcksReceived.getOrDefault(msg.nextReplica, 0) == 0) {
-      handleMissingCoordinatorAck(msg);
+  private void onSynchronizationAckTimeout(Message.Replica.SynchronizationAckTimeout msg) {
+    logger.debug("Replica {} synchronization ACK timeout for {}", Helper.getId(getSelf()), Helper.getName(msg.nextReplica));
+    if (synchronizationAcksReceived.getOrDefault(msg.nextReplica, 0) == 0) {
+      handleMissingSynchronizationAck(msg);
     } else {
-      decrementCoordinatorAckCount(msg.nextReplica);
+      decrementSynchronizationAckCount(msg.nextReplica);
     }
   }
 
-  private void handleMissingCoordinatorAck(Message.Replica.CoordinatorAckTimeout msg) {
-    logger.debug("Replica {} has not received coordinator ACK, removing {}", Helper.getId(getSelf()),
+  private void handleMissingSynchronizationAck(Message.Replica.SynchronizationAckTimeout msg) {
+    logger.debug("Replica {} has not received synchronization ACK, removing {}", Helper.getId(getSelf()),
         Helper.getName(msg.nextReplica));
     replicas.remove(msg.nextReplica);
     int nextIndex = getNextReplicaIndex();
-    logger.debug("Replica {} sending coordinator message to {}", Helper.getId(getSelf()),
+    logger.debug("Replica {} sending synchronization message to {}", Helper.getId(getSelf()),
         Helper.getName(replicas.get(nextIndex)));
-    Helper.tellDelay(new Message.Replica.Coordinator(msg.coordinatorCandidates), getSelf(), replicas.get(nextIndex));
-    Helper.setTimeout(getContext(), COORDINATOR_TIMEOUT, getSelf(),
-        new Message.Replica.CoordinatorAckTimeout(replicas.get(nextIndex), msg.coordinatorCandidates));
+    Helper.tellDelay(new Message.Replica.Synchronization(msg.coordinatorCandidates), getSelf(),
+        replicas.get(nextIndex));
+    Helper.setTimeout(getContext(), SYNCHRONIZATION_TIMEOUT, getSelf(),
+        new Message.Replica.SynchronizationAckTimeout(replicas.get(nextIndex), msg.coordinatorCandidates));
   }
 
-  private void decrementCoordinatorAckCount(ActorRef replica) {
-    int ackReceived = electionCoordinatorAcksReceived.get(replica) - 1;
-    electionCoordinatorAcksReceived.put(replica, ackReceived);
+  private void decrementSynchronizationAckCount(ActorRef replica) {
+    int ackReceived = synchronizationAcksReceived.get(replica) - 1;
+    synchronizationAcksReceived.put(replica, ackReceived);
   }
 
   private int getNextReplicaIndex() {
@@ -602,9 +603,9 @@ public class Replica extends AbstractActor {
         .match(Message.Replica.Election.class, this::onElection)
         .match(Message.Replica.ElectionAck.class, this::onElectionAck)
         .match(Message.Replica.ElectionAckTimeout.class, this::onElectionAckTimeout)
-        .match(Message.Replica.Coordinator.class, this::onCoordinator)
-        .match(Message.Replica.CoordinatorAck.class, this::onCoordinatorAck)
-        .match(Message.Replica.CoordinatorAckTimeout.class, this::onCoordinatorAckTimeout)
+        .match(Message.Replica.Synchronization.class, this::onSynchronization)
+        .match(Message.Replica.SynchronizationAck.class, this::onSynchronizationAck)
+        .match(Message.Replica.SynchronizationAckTimeout.class, this::onSynchronizationAckTimeout)
         .build();
   }
 
@@ -627,9 +628,9 @@ public class Replica extends AbstractActor {
         .match(Message.Replica.Election.class, this::onElection)
         .match(Message.Replica.ElectionAck.class, this::onElectionAck)
         .match(Message.Replica.ElectionAckTimeout.class, this::onElectionAckTimeout)
-        .match(Message.Replica.Coordinator.class, this::onCoordinator)
-        .match(Message.Replica.CoordinatorAck.class, this::onCoordinatorAck)
-        .match(Message.Replica.CoordinatorAckTimeout.class, this::onCoordinatorAckTimeout)
+        .match(Message.Replica.Synchronization.class, this::onSynchronization)
+        .match(Message.Replica.SynchronizationAck.class, this::onSynchronizationAck)
+        .match(Message.Replica.SynchronizationAckTimeout.class, this::onSynchronizationAckTimeout)
         .matchAny(msg -> {
           logger.warn("{} is not handled during election", msg);
         })

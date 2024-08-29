@@ -123,22 +123,22 @@ public final class Message {
       }
     }
 
-    public static class Coordinator implements BaseMessage {
+    public static class Synchronization implements BaseMessage {
       public final Map<ActorRef, TimeId> coordinatorCandidates;
 
-      public Coordinator(Map<ActorRef, TimeId> candidates) {
+      public Synchronization(Map<ActorRef, TimeId> candidates) {
         this.coordinatorCandidates = new HashMap<>(candidates);
       }
     }
 
-    public static class CoordinatorAck implements BaseMessage {
+    public static class SynchronizationAck implements BaseMessage {
     }
 
-    public static class CoordinatorAckTimeout implements BaseMessage {
+    public static class SynchronizationAckTimeout implements BaseMessage {
       public final ActorRef nextReplica;
       public final Map<ActorRef, TimeId> coordinatorCandidates;
 
-      public CoordinatorAckTimeout(ActorRef nextReplica, Map<ActorRef, TimeId> candidates) {
+      public SynchronizationAckTimeout(ActorRef nextReplica, Map<ActorRef, TimeId> candidates) {
         this.nextReplica = nextReplica;
         this.coordinatorCandidates = new HashMap<>(candidates);
       }
