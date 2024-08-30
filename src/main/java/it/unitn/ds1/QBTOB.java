@@ -75,15 +75,15 @@ public class QBTOB {
     simulateElectionCrashes(replicas, clients);
     waitForUserInput();
 
-    // replica Alive = 5 (1,4,5,6,7) [7 coordinator]
+    // replicas Alive = 5 (1,4,5,6,7) [7 coordinator]
     simulateUpdateCrash(replicas, clients);
     waitForUserInput();
 
-    // replica Alive = 4 (1,4,5,6) [6 coordinator]
+    // replicas Alive = 4 (1,4,5,6) [6 coordinator]
     simulateWriteOkCrashes(replicas, clients);
     waitForUserInput();
 
-    // replica Alive = 2 (4,5) [4 coordinator]
+    // replicas Alive = 2 (4,5) [4 coordinator]
   }
 
   private static void simulateReadsAndWrites(List<ActorRef> clients) {
